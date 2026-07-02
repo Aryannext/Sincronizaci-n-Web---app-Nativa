@@ -1,0 +1,37 @@
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+CREATE TABLE personas (
+
+    id SERIAL PRIMARY KEY,
+
+    uuid UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+
+    nombre VARCHAR(100) NOT NULL,
+
+    apellido VARCHAR(100) NOT NULL,
+
+    telefono VARCHAR(20) NOT NULL,
+
+    correo VARCHAR(150) NOT NULL UNIQUE,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    deleted_at TIMESTAMP NULL
+
+);
+
+CREATE TABLE sync_log (
+
+    change_id BIGSERIAL PRIMARY KEY,
+
+    table_name VARCHAR(100) NOT NULL,
+
+    record_uuid UUID NOT NULL,
+
+    operation VARCHAR(10) NOT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+
+);
