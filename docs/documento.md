@@ -12,6 +12,39 @@ El sistema utiliza una arquitectura de **Tres Capas** diseñada para funcionar s
 - **Base de Datos (PostgreSQL):** El *"Single Source of Truth"* (Fuente única de verdad) donde residen los datos finales, versiones y el estado consolidado de todos los usuarios.
 - **Centro de Mando Web (React + Vite):** Cliente administrativo en oficina que permite monitorear las sincronizaciones en tiempo real, auditar eventos y gestionar la base de datos de forma online.
 
+### Diagrama de Arquitectura del Sistema
+```mermaid
+graph TD
+    subgraph Capa_Movil [Cliente Android Nativo - Campo]
+        UI[Jetpack Compose UI] -->|Lectura / Escritura| REPO[PersonaRepository]
+        REPO -->|Persistencia SQLite| ROOM[(Room DB Local)]
+        ROOM -->|Tareas pendientes| COLA[Tabla pending_changes]
+        WM[WorkManager / NetworkMonitor] -->|Escucha estado de red| COLA
+    end
+
+    subgraph Capa_Servidor [Backend Node.js & API REST]
+        API[Express API - Puerto 3000 / 0.0.0.0]
+        VAL[express-validator & Error Middleware]
+        API --> VAL
+    end
+
+    subgraph Capa_Datos [Base de Datos Central - PostgreSQL]
+        PG[(Tabla personas)]
+        LOG[(Tabla sync_log)]
+        VAL -->|Transaccion SQL| PG
+        VAL -->|Auditoria transaccional| LOG
+    end
+
+    subgraph Capa_Administrativa [Centro de Mando - Oficina]
+        WEB[React + Vite Web App] -->|Consultas HTTP / CORS| API
+    end
+
+    WM -->|PUSH: Subir pendientes| API
+    WM -->|PULL: Descargar incrementales| API
+    PG -->|Lectura de estado| WEB
+    LOG -->|Feed en vivo| WEB
+```
+
 ---
 
 ## 2. Configuración de Conexión Local (Detalle Crítico)
@@ -30,6 +63,19 @@ Para rastrear el ciclo de vida de cada registro sin conexión, la entidad `Perso
 - **`PENDING_INSERT`:** Persona creada localmente en el móvil sin conexión a internet. Está lista para ser empujada en el próximo ciclo Push.
 - **`PENDING_UPDATE`:** Persona editada localmente en el móvil; el servidor PostgreSQL aún posee una versión anterior del registro.
 - **`PENDING_DELETE`:** Persona marcada por el usuario para eliminar; el registro se mantiene en Room con una fecha en `deletedAt` hasta que el servidor reciba la notificación y confirme el borrado lógico.
+
+### Diagrama de Ciclo de Vida del Estado de Sincronización (`syncStatus`)
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING_INSERT: Creacion offline en terreno
+    PENDING_INSERT --> SYNCED: Sincronizacion Push exitosa
+    
+    SYNCED --> PENDING_UPDATE: Edicion local en movil
+    PENDING_UPDATE --> SYNCED: Sincronizacion Push exitosa
+    
+    SYNCED --> PENDING_DELETE: Eliminacion local por usuario
+    PENDING_DELETE --> [*]: Confirmacion del servidor y borrado en Room
+```
 
 ---
 
@@ -56,6 +102,40 @@ Utiliza la librería oficial **Android WorkManager** para garantizar la ejecuci�
 Para evitar duplicados, colisiones de IDs y pérdida de información en entornos concurrentes:
 - **Identificadores Universales (`UUID`):** Cada registro nace con un UUID único generado en el cliente o servidor, evitando colisiones aunque dos móviles creen registros offline simultáneamente.
 - **Lógica de Conflicto (`upsertSync`):** Al descargar datos del servidor, el DAO de Room compara el campo `version`. Si el UUID ya existe localmente, pero el dato entrante del servidor tiene un número de `version` mayor, el móvil sobrescribe el registro local con la versión oficial del servidor.
+
+### Diagrama de Secuencia: Flujo Transaccional Push & Pull
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Usuario as Operador en Terreno
+    participant UI as Jetpack Compose UI
+    participant Room as Room SQLite Local
+    participant Worker as WorkManager (SyncWorker)
+    participant API as Node.js Express API
+    participant PG as PostgreSQL DB
+
+    Note over Usuario, Room: Fase 1: Operacion Offline en Terreno
+    Usuario->>UI: Crea o edita registro
+    UI->>Room: Guarda Persona (syncStatus = PENDING_INSERT)
+    Room->>Room: Inserta en tabla pending_changes
+
+    Note over Worker, PG: Fase 2: Restauracion de Red y Sincronizacion PUSH
+    Worker->>Worker: Detecta conexion Wi-Fi / Datos
+    Worker->>Room: Lee tareas de pending_changes
+    Worker->>API: POST / PUT /api/personas (Payload JSON)
+    API->>API: Valida reglas con express-validator
+    API->>PG: Transaccion SQL (Upsert en personas + Registro en sync_log)
+    PG-->>API: Confirmacion de guardado
+    API-->>Worker: HTTP 201 Created / 200 OK (Objeto final con version)
+    Worker->>Room: Actualiza a syncStatus = SYNCED y limpia pending_changes
+
+    Note over Worker, PG: Fase 3: Sincronizacion Incremental PULL
+    Worker->>API: GET /api/sync?last_change_id=X
+    API->>PG: SELECT * FROM sync_log WHERE change_id > X
+    PG-->>API: Devuelve eventos transaccionales
+    API-->>Worker: HTTP 200 OK (Lista de cambios remotos)
+    Worker->>Room: upsertSync (Compara UUID y version para evitar conflictos)
+```
 
 ---
 
