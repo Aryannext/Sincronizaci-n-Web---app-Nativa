@@ -1,6 +1,6 @@
 # API REST - Sistema de Sincronización Offline-First (CRUD)
 
-## 📋 Descripción General
+## Descripción General
 Esta especificación técnica documenta la API REST del backend en **Node.js + Express + PostgreSQL**. Actúa como servidor de validación, fuente única de verdad (*Single Source of Truth*) y motor de sincronización asíncrona para clientes móviles nativos (**Android / Kotlin**) y el Centro de Mando Web (**React + Vite**).
 
 ### Características Clave del Backend:
@@ -11,7 +11,7 @@ Esta especificación técnica documenta la API REST del backend en **Node.js + E
 
 ---
 
-## 🌐 URLs Base y Configuración de Red
+## URLs Base y Configuración de Red
 El servidor Node.js se ejecuta vinculando explícitamente la interfaz `0.0.0.0` en el puerto `3000` (`app.listen(3000, "0.0.0.0")`), permitiendo conexiones entrantes de emuladores y teléfonos físicos en la red local Wi-Fi.
 
 - **Desarrollo en PC local (Web / Postman):**
@@ -27,7 +27,7 @@ Content-Type: application/json
 
 ---
 
-## 👥 Módulo Persona (Modelo de Datos)
+## Módulo Persona (Modelo de Datos)
 Representación JSON de un registro de Persona que circula en la API:
 
 ```json
@@ -47,7 +47,7 @@ Representación JSON de un registro de Persona que circula en la API:
 
 ---
 
-# 🚀 Endpoints de Personas (CRUD Online)
+# Endpoints de Personas (CRUD Online)
 
 ## 1. Obtener todas las personas activas
 Devuelve la lista de registros activos. Aplica automáticamente el filtro `WHERE deleted_at IS NULL` para excluir los eliminados lógicamente.
@@ -216,7 +216,7 @@ No destruye el registro físicamente en PostgreSQL. Escribe la marca de tiempo e
 
 ---
 
-# 🔄 Endpoints de Sincronización Offline (PULL)
+# Endpoints de Sincronización Offline (PULL)
 
 ## 1. Descargar Historial de Cambios (`GET /sync`)
 Punto de entrada principal para la sincronización PULL de clientes nativos Android y monitoreo web. Consulta la tabla `sync_log` devolviendo todos los eventos posteriores al último ID conocido por el cliente.
@@ -275,7 +275,7 @@ Punto de entrada principal para la sincronización PULL de clientes nativos Andr
 
 ---
 
-# ⚠️ Respuestas de Error Estándar
+# Respuestas de Error Estándar
 
 ## Error de Validación (`400 Bad Request`)
 Devuelto por `express-validator` cuando se omiten campos obligatorios o no tienen un formato válido (ej. correo inválido o teléfono muy corto).
@@ -311,7 +311,7 @@ Devuelto por PostgreSQL cuando se intenta insertar o modificar una persona utili
 
 ---
 
-## 📊 Códigos de Estado HTTP Utilizados
+## Códigos de Estado HTTP Utilizados
 
 | Código | Estado | Uso en la API |
 |:------:|:-------|:--------------|

@@ -62,12 +62,12 @@ Para evitar duplicados, colisiones de IDs y pérdida de información en entornos
 ## 5. Flujo de Datos Completo (De Terreno a Base de Datos)
 El ciclo de vida transaccional sigue estos 6 pasos secuenciales:
 
-1. **Creación Offline:** El usuario en terreno crea una Persona en la app Android ➡️ Se guarda en **Room** con `syncStatus = PENDING_INSERT` ➡️ Se inserta la tarea en la tabla `pending_changes`.
-2. **Detección de Red:** El móvil recupera cobertura o se conecta al Wi-Fi ➡️ El sistema operativo despierta al **SyncWorker**.
-3. **Fase Push:** El SyncWorker lee la cola `pending_changes` ➡️ Realiza una petición HTTP `POST /api/personas` enviando el payload JSON a Node.js.
-4. **Procesamiento en Backend:** Node.js recibe el JSON ➡️ Valida los campos con `express-validator` ➡️ Inserta el registro en **PostgreSQL** y escribe una fila de auditoría en `sync_log`.
+1. **Creación Offline:** El usuario en terreno crea una Persona en la app Android -> Se guarda en **Room** con `syncStatus = PENDING_INSERT` -> Se inserta la tarea en la tabla `pending_changes`.
+2. **Detección de Red:** El móvil recupera cobertura o se conecta al Wi-Fi -> El sistema operativo despierta al **SyncWorker**.
+3. **Fase Push:** El SyncWorker lee la cola `pending_changes` -> Realiza una petición HTTP `POST /api/personas` enviando el payload JSON a Node.js.
+4. **Procesamiento en Backend:** Node.js recibe el JSON -> Valida los campos con `express-validator` -> Inserta el registro en **PostgreSQL** y escribe una fila de auditoría en `sync_log`.
 5. **Respuesta Confirmada:** Node.js responde con código HTTP `201 Created` o `200 OK` devolviendo el objeto final consolidado (incluyendo la `version` e ID interno de Postgres).
-6. **Cierre de Ciclo en Móvil:** El móvil recibe la respuesta del servidor ➡️ Actualiza el registro en Room a `syncStatus = SYNCED` ➡️ Elimina la tarea completada de la tabla `pending_changes`.
+6. **Cierre de Ciclo en Móvil:** El móvil recibe la respuesta del servidor -> Actualiza el registro en Room a `syncStatus = SYNCED` -> Elimina la tarea completada de la tabla `pending_changes`.
 
 ---
 
