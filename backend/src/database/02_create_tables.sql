@@ -18,7 +18,9 @@ CREATE TABLE personas (
 
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    deleted_at TIMESTAMP NULL
+    deleted_at TIMESTAMP NULL,
+
+    version INTEGER NOT NULL DEFAULT 1
 
 );
 
