@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   RefreshCw
 } from 'lucide-react';
+import { API_ORIGIN } from '../services/api';
 
 export default function Sidebar({ activeTab, setActiveTab, isConnected, onRefresh, isRefreshing }) {
   const menuItems = [
@@ -81,7 +82,7 @@ export default function Sidebar({ activeTab, setActiveTab, isConnected, onRefres
               {isConnected ? 'Backend Online' : 'Servidor Offline'}
             </div>
             <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
-              localhost:3000
+              {API_ORIGIN.replace(/^https?:\/\//, '')}
             </div>
           </div>
         </div>

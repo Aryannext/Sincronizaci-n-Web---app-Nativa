@@ -37,6 +37,10 @@ const crearPersonaValidator = [
 
 ]
 
+// El PUT reemplaza todos los campos, así que exige las mismas reglas que el POST
+const actualizarPersonaValidator = crearPersonaValidator
+
 module.exports = {
-    crearPersonaValidator
+    crearPersonaValidator,
+    actualizarPersonaValidator
 }

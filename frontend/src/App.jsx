@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import DashboardView from './components/DashboardView';
 import PersonasView from './components/PersonasView';
 import SyncMonitorView from './components/SyncMonitorView';
 import TrashView from './components/TrashView';
-import { api } from './services/api';
+import { api, API_ORIGIN } from './services/api';
 import { Radio, AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function App() {
@@ -15,6 +15,8 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toast, setToast] = useState(null);
+  // Último change_id ya descargado: el polling solo pide los eventos nuevos
+  const lastChangeIdRef = useRef(0);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -30,12 +32,23 @@ export default function App() {
       setIsConnected(health);
 
       if (health) {
+        // La recarga completa vuelve a descargar todo el historial
+        const fromChangeId = quiet ? lastChangeIdRef.current : 0;
         const [personasData, syncData] = await Promise.all([
           api.getPersonas(),
-          api.getSyncLog(0, 100)
+          api.getSyncChangesSince(fromChangeId)
         ]);
         setPersonas(personasData);
-        setSyncLogs(syncData.changes || []);
+        lastChangeIdRef.current = quiet
+          ? Math.max(lastChangeIdRef.current, syncData.last_change_id)
+          : syncData.last_change_id;
+        setSyncLogs(prev => {
+          if (!quiet) return syncData.changes;
+          // Evita duplicados si dos cargas se solapan
+          const known = new Set(prev.map(log => log.change_id));
+          const nuevos = syncData.changes.filter(log => !known.has(log.change_id));
+          return nuevos.length > 0 ? [...prev, ...nuevos] : prev;
+        });
       }
     } catch (err) {
       console.error('Error cargando datos de sincronización:', err);
@@ -141,7 +154,7 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <AlertCircle size={20} />
               <span>
-                <strong>Servidor Desconectado:</strong> No se pudo conectar a <code>http://localhost:3000/api</code>. Verifica que tu backend Node.js esté corriendo con <code>npm run dev</code>.
+                <strong>Servidor Desconectado:</strong> No se pudo conectar a <code>{API_ORIGIN}/api</code>. Verifica que tu backend Node.js esté corriendo con <code>npm run dev</code>.
               </span>
             </div>
             <button onClick={() => loadAllData(false)} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: '0.8rem', borderColor: 'rgba(239, 68, 68, 0.4)' }}>

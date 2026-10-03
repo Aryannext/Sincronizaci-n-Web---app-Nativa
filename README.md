@@ -104,10 +104,15 @@ cp .env.example .env  # Configura tus credenciales de PostgreSQL en .env
 npm run dev
 ```
 
+Crea la base de datos ejecutando en orden `01_create_database.sql`, `02_create_tables.sql` y `03_seed.sql` (carpeta `backend/src/database/`). Si tu base ya existía sin la columna `version`, ejecuta también `04_add_version_column.sql`.
+
 ### 3. Configurar y Ejecutar la Web App (Frontend)
 ```bash
 cd frontend
 npm install
+
+# Opcional: cambiar la URL del backend (por defecto http://localhost:3000)
+cp .env.example .env
 
 # Iniciar servidor local de Vite (Puerto 5173)
 npm run dev
