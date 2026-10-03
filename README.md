@@ -71,8 +71,10 @@ graph TD
 La app Android (Kotlin + Room) **no forma parte de este repositorio**: aquí están el backend y el panel web. El contrato que debe seguir la app está en [docs/api.md](docs/api.md) y el flujo completo en [docs/documento.md](docs/documento.md).
 
 ```text
+├── .github/workflows/ # CI: tests del backend y lint + build del frontend en cada PR
 ├── backend/          # API REST (Node.js, Express, PostgreSQL, pg)
 │   ├── scripts/          # crear-usuario.js (alta, cambio de contraseña y baja de usuarios)
+│   ├── test/             # Tests de integración (node:test + PostgreSQL embebido)
 │   └── src/
 │       ├── config/       # Conexión a PostgreSQL y configuración de seguridad
 │       ├── controllers/  # Controladores (Auth, Personas y Sincronización)
@@ -154,6 +156,19 @@ Inicia sesión con un usuario `admin`.
 1. Asegúrate de que tu PC y tu teléfono móvil estén en la **misma red Wi-Fi**.
 2. Configura la IP de tu servidor (ej. `http://192.168.X.X:3000`) en el archivo de configuración del cliente móvil (`network_security_config.xml` y `PersonaApi.kt`).
 3. La app debe iniciar sesión con un usuario `operador` (`POST /api/auth/login`) y enviar el token en cada petición. Ver [docs/api.md](docs/api.md#autenticación).
+
+---
+
+## Pruebas
+
+Los tests del backend levantan su propio **PostgreSQL embebido** (no hace falta tenerlo instalado) y prueban la API real: autenticación y roles, push con conflictos y concurrencia, papelera, validaciones, el script de usuarios y las migraciones sobre el esquema original.
+
+```bash
+cd backend
+npm test
+```
+
+En cada pull request, GitHub Actions ejecuta estos tests y además el linter (sin avisos permitidos) y la compilación del frontend. Si algo falla, el PR no se puede fusionar en `main`.
 
 ---
 
