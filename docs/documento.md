@@ -20,31 +20,36 @@ graph TD
     subgraph Capa_Movil [Cliente Android Nativo - Campo]
         UI[Jetpack Compose UI] -->|Lectura / Escritura| REPO[PersonaRepository]
         REPO -->|Persistencia SQLite| ROOM[(Room DB Local)]
-        ROOM -->|Tareas pendientes| COLA[Tabla pending_changes]
+        ROOM -->|Tareas pendientes con uuid y base_version| COLA[Tabla pending_changes]
         WM[WorkManager / NetworkMonitor] -->|Escucha estado de red| COLA
+        TOKEN[Token del operador en EncryptedSharedPreferences]
     end
 
-    subgraph Capa_Servidor [Backend Node.js & API REST]
-        API[Express API - Puerto 3000 / 0.0.0.0]
+    subgraph Capa_Servidor [Backend Node.js & API REST - HTTPS en produccion]
+        API[Express API - Puerto 3000]
+        SEG[CORS, helmet y limite de peticiones]
+        AUTH[Autenticacion JWT y roles]
         VAL[express-validator & Error Middleware]
-        API --> VAL
+        API --> SEG --> AUTH --> VAL
     end
 
     subgraph Capa_Datos [Base de Datos Central - PostgreSQL]
         PG[(Tabla personas)]
         LOG[(Tabla sync_log)]
-        VAL -->|Transaccion SQL| PG
-        VAL -->|Auditoria transaccional| LOG
+        USR[(Tabla usuarios)]
+        AUTH -->|Verifica usuario activo| USR
+        VAL -->|Transaccion SQL con control de version| PG
+        VAL -->|Auditoria con usuario| LOG
     end
 
     subgraph Capa_Administrativa [Centro de Mando - Oficina]
-        WEB[React + Vite Web App] -->|Consultas HTTP / CORS| API
+        WEB[React + Vite Web App - login admin] -->|HTTPS + token| API
     end
 
-    WM -->|PUSH: Subir pendientes| API
-    WM -->|PULL: Descargar incrementales| API
-    PG -->|Lectura de estado| WEB
-    LOG -->|Feed en vivo| WEB
+    WM -->|PUSH: POST /sync/push + token| API
+    WM -->|PULL: GET /sync + token| API
+    TOKEN -.->|Authorization: Bearer| WM
+    API -->|Personas, papelera y feed de sync_log| WEB
 ```
 
 ---
@@ -80,13 +85,15 @@ Para rastrear el ciclo de vida de cada registro sin conexión, la entidad `Perso
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING_INSERT: Creacion offline en terreno
-    PENDING_INSERT --> SYNCED: Sincronizacion Push exitosa
-    
+    PENDING_INSERT --> SYNCED: Push applied o duplicate
+
     SYNCED --> PENDING_UPDATE: Edicion local en movil
-    PENDING_UPDATE --> SYNCED: Sincronizacion Push exitosa
-    
+    PENDING_UPDATE --> SYNCED: Push applied
+    PENDING_UPDATE --> SYNCED: Push conflict, se toma la version del servidor
+
     SYNCED --> PENDING_DELETE: Eliminacion local por usuario
-    PENDING_DELETE --> [*]: Confirmacion del servidor y borrado en Room
+    PENDING_DELETE --> [*]: Push applied y borrado en Room
+    PENDING_DELETE --> SYNCED: Push conflict, el registro cambio en el servidor
 ```
 
 ---
