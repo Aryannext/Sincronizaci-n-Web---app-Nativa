@@ -1,10 +1,15 @@
 const AppError = require("../errors/AppError")
 
+// Errores de PostgreSQL causados por la petición del cliente (se responden con 4xx más abajo)
+const CODIGOS_PG_DEL_CLIENTE = new Set(["23505", "23503", "22P02"])
+
 const errorMiddleware = (error, req, res, next) => {
 
     // Los errores esperados (401, 403, 404, validación...) no se registran con traza:
     // bajo un ataque llenarían los logs sin aportar nada
-    const esperado = error instanceof AppError && error.statusCode < 500
+    const esperado =
+        (error instanceof AppError && error.statusCode < 500) ||
+        CODIGOS_PG_DEL_CLIENTE.has(error.code)
 
     if (!esperado && !error.type) {
         console.error(error)

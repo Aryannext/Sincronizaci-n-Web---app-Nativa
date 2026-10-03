@@ -29,6 +29,19 @@ const obtenerPersonas = async () => {
     return resultado.rows
 }
 
+// Personas en la papelera (borrado lógico), las más recientes primero
+const obtenerPersonasEliminadas = async () => {
+    const resultado = await pool.query(`
+        SELECT
+            ${PERSONA_COLUMNS}
+        FROM personas
+        WHERE deleted_at IS NOT NULL
+        ORDER BY deleted_at DESC
+    `)
+
+    return resultado.rows
+}
+
 const obtenerPersonaPorId = async (id) => {
 
     const resultado = await pool.query(`
@@ -259,11 +272,98 @@ const eliminarPersona = async (id, usuarioId) => {
 
 }
 
+// Saca a una persona de la papelera. Para los móviles llega como un UPDATE con
+// deleted_at en null y una versión mayor, así que la vuelven a insertar sin cambios en la app.
+const restaurarPersona = async (id, version, usuarioId) => {
+
+    const client = await pool.connect()
+
+    try {
+
+        await client.query("BEGIN")
+
+        const resultado = await client.query(`
+            UPDATE personas
+            SET
+                deleted_at = NULL,
+                updated_at = CURRENT_TIMESTAMP,
+                version = version + 1
+            WHERE id = $1
+            AND deleted_at IS NOT NULL
+            AND ($2::INTEGER IS NULL OR version = $2)
+            RETURNING
+                ${PERSONA_COLUMNS}
+        `, [
+            id,
+            version ?? null
+        ])
+
+        const restaurada = resultado.rows[0]
+
+        if (!restaurada) {
+
+            const actual = (await client.query(`
+                SELECT
+                    ${PERSONA_COLUMNS}
+                FROM personas
+                WHERE id = $1
+            `, [id])).rows[0]
+
+            if (!actual) {
+                throw new AppError("Persona no encontrada", 404)
+            }
+
+            if (!actual.deleted_at) {
+                throw new AppError("La persona no está en la papelera.", 409, actual)
+            }
+
+            throw new AppError(
+                "El registro fue modificado por otro usuario o dispositivo. Vuelve a abrir la papelera para ver la versión actual.",
+                409,
+                actual
+            )
+        }
+
+        await syncService.registrarCambio(
+            client,
+            TABLES.PERSONAS,
+            restaurada.uuid,
+            SYNC_OPERATIONS.UPDATE,
+            usuarioId
+        )
+
+        await client.query("COMMIT")
+
+        return restaurada
+
+    } catch (error) {
+
+        await client.query("ROLLBACK")
+
+        if (error.code === "23505") {
+            throw new AppError(
+                "No se puede restaurar: otra persona activa ya usa ese correo.",
+                409
+            )
+        }
+
+        throw error
+
+    } finally {
+
+        client.release()
+
+    }
+
+}
+
 module.exports = {
     PERSONA_COLUMNS,
     obtenerPersonas,
+    obtenerPersonasEliminadas,
     obtenerPersonaPorId,
     crearPersona,
     actualizarPersona,
-    eliminarPersona
+    eliminarPersona,
+    restaurarPersona
 }

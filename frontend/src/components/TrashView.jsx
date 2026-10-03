@@ -1,17 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Trash2, 
   AlertTriangle, 
   Clock, 
   RotateCcw, 
   ShieldAlert,
-  Database,
   GitBranch
 } from 'lucide-react';
 
-export default function TrashView({ syncLogs = [], onRestore }) {
-  // Obtener registros que fueron eliminados según el sync_log
-  const deletedLogs = syncLogs.filter(log => log.operation === 'DELETE');
+export default function TrashView({ eliminadas = [], onRestore }) {
+  const [restaurandoId, setRestaurandoId] = useState(null);
+
+  const handleRestore = async (persona) => {
+    if (!window.confirm(`¿Restaurar a ${persona.nombre} ${persona.apellido}? Volverá a la lista de personas y a los dispositivos móviles.`)) return;
+    setRestaurandoId(persona.id);
+    try {
+      await onRestore(persona);
+    } catch {
+      // El error ya se muestra en un aviso desde App
+    } finally {
+      setRestaurandoId(null);
+    }
+  };
 
   return (
     <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -30,7 +40,7 @@ export default function TrashView({ syncLogs = [], onRestore }) {
         </div>
 
         <div className="badge badge-danger" style={{ padding: '8px 14px', fontSize: '0.85rem' }}>
-          <AlertTriangle size={16} /> {deletedLogs.length} Registros en Papelera
+          <AlertTriangle size={16} /> {eliminadas.length} Registros en Papelera
         </div>
       </div>
 
@@ -57,43 +67,55 @@ export default function TrashView({ syncLogs = [], onRestore }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ background: 'rgba(0,0,0,0.3)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                <th style={{ padding: '16px 20px' }}>Sync ID</th>
+                <th style={{ padding: '16px 20px' }}>ID</th>
                 <th style={{ padding: '16px 20px' }}>Registro Eliminado</th>
                 <th style={{ padding: '16px 20px' }}>UUID Original</th>
                 <th style={{ padding: '16px 20px' }}>Fecha de Borrado</th>
                 <th style={{ padding: '16px 20px' }}>Versión Final</th>
+                <th style={{ padding: '16px 20px' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {deletedLogs.length === 0 ? (
+              {eliminadas.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={6} style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
                     La papelera está vacía. No se ha eliminado ninguna persona recientemente.
                   </td>
                 </tr>
               ) : (
-                [...deletedLogs].reverse().map((log, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                eliminadas.map((persona) => (
+                  <tr key={persona.uuid} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <td style={{ padding: '16px 20px', fontWeight: 700, color: 'var(--danger)' }}>
-                      #{log.change_id}
+                      #{persona.id}
                     </td>
                     <td style={{ padding: '16px 20px', fontWeight: 600, fontSize: '0.95rem', color: '#fff' }}>
-                      {log.data ? `${log.data.nombre} ${log.data.apellido}` : `Persona UUID: ${log.record_uuid.slice(0,8)}...`}
-                      {log.data?.correo && <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 400 }}>{log.data.correo}</div>}
+                      {persona.nombre} {persona.apellido}
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 400 }}>{persona.correo}</div>
                     </td>
                     <td style={{ padding: '16px 20px', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-dim)' }}>
-                      {log.record_uuid}
+                      {persona.uuid}
                     </td>
                     <td style={{ padding: '16px 20px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <Clock size={14} color="var(--danger)" />
-                        <span>{new Date(log.created_at).toLocaleString()}</span>
+                        <span>{new Date(persona.deleted_at).toLocaleString()}</span>
                       </div>
                     </td>
                     <td style={{ padding: '16px 20px' }}>
                       <span className="badge badge-version" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-                        <GitBranch size={12} /> v{log.data?.version || '?' } (Eliminado)
+                        <GitBranch size={12} /> v{persona.version} (Eliminado)
                       </span>
+                    </td>
+                    <td style={{ padding: '16px 20px' }}>
+                      <button
+                        onClick={() => handleRestore(persona)}
+                        disabled={restaurandoId === persona.id}
+                        className="btn btn-ghost"
+                        style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                        title="Restaurar persona"
+                      >
+                        <RotateCcw size={14} /> {restaurandoId === persona.id ? 'Restaurando…' : 'Restaurar'}
+                      </button>
                     </td>
                   </tr>
                 ))

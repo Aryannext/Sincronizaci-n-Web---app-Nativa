@@ -12,7 +12,7 @@ CREATE TABLE personas (
 
     telefono VARCHAR(20) NOT NULL,
 
-    correo VARCHAR(150) NOT NULL UNIQUE,
+    correo VARCHAR(150) NOT NULL,
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -23,6 +23,11 @@ CREATE TABLE personas (
     version INTEGER NOT NULL DEFAULT 1
 
 );
+
+-- El correo solo debe ser único entre personas activas: uno borrado se puede volver a usar
+CREATE UNIQUE INDEX personas_correo_activo_idx
+    ON personas (correo)
+    WHERE deleted_at IS NULL;
 
 CREATE TABLE sync_log (
 
