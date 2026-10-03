@@ -169,9 +169,12 @@ Modifica los datos de una persona activa. Incrementa el campo `version` en 1 y d
     "nombre": "Juan Carlos",
     "apellido": "Perez",
     "telefono": "3119998888",
-    "correo": "juancarlos@gmail.com"
+    "correo": "juancarlos@gmail.com",
+    "version": 1
 }
 ```
+
+`version` es opcional. Si se envía, el cambio solo se aplica cuando coincide con la versión actual del servidor (control de concurrencia optimista). El panel web siempre la envía. Los dispositivos móviles deben usar `POST /sync/push`.
 
 ### Respuesta Exitosa (`200 OK`)
 ```json
@@ -186,6 +189,27 @@ Modifica los datos de una persona activa. Incrementa el campo `version` en 1 y d
     "updated_at": "2026-07-02T05:15:00.000Z",
     "deleted_at": null,
     "version": 2
+}
+```
+
+### Conflicto de Versión (`409 Conflict`)
+Otro usuario o dispositivo modificó el registro después de que el cliente lo leyó. No se aplica ningún cambio y `data` trae la versión actual para que el usuario decida.
+```json
+{
+    "success": false,
+    "message": "El registro fue modificado por otro usuario o dispositivo. Vuelve a abrirlo para ver la versión actual.",
+    "data": {
+        "id": 2,
+        "uuid": "8f1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
+        "nombre": "Juan Carlos",
+        "apellido": "Perez",
+        "telefono": "3157770000",
+        "correo": "juancarlos@gmail.com",
+        "created_at": "2026-07-02T05:10:00.000Z",
+        "updated_at": "2026-07-02T05:18:00.000Z",
+        "deleted_at": null,
+        "version": 3
+    }
 }
 ```
 
@@ -275,6 +299,80 @@ Punto de entrada principal para la sincronización PULL de clientes nativos Andr
 
 ---
 
+# Endpoint de Sincronización Offline (PUSH)
+
+## 2. Subir la Cola de Cambios Pendientes (`POST /sync/push`)
+El dispositivo envía en un solo lote los cambios que guardó sin conexión. El servidor los aplica **en el orden recibido** y devuelve un resultado por cada operación. Una operación que falle no bloquea las demás.
+
+- **Método:** `POST`
+- **Ruta:** `/sync/push`
+- **Máximo:** 200 operaciones por lote (si hay más, se envían en varios lotes).
+- **Ejemplo:** `POST http://192.168.40.5:3000/api/sync/push`
+
+### Cuerpo de la Petición (`Body`)
+```json
+{
+    "operations": [
+        {
+            "op": "CREATE",
+            "uuid": "c39a8c12-3a5f-4d98-8e3b-112233445566",
+            "data": { "nombre": "Laura", "apellido": "Gomez", "telefono": "3001234500", "correo": "laura@example.com" }
+        },
+        {
+            "op": "UPDATE",
+            "uuid": "8f1a2b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
+            "base_version": 3,
+            "data": { "nombre": "Juan", "apellido": "Perez", "telefono": "3119998888", "correo": "juan@gmail.com" }
+        },
+        {
+            "op": "DELETE",
+            "uuid": "0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e",
+            "base_version": 2
+        }
+    ]
+}
+```
+
+| Campo | Obligatorio en | Descripción |
+|-------|----------------|-------------|
+| `op` | Todas | `CREATE`, `UPDATE` o `DELETE`. |
+| `uuid` | Todas | UUID del registro. En `CREATE` lo **genera el dispositivo** (UUID v4) al guardar offline y nunca cambia. |
+| `base_version` | `UPDATE`, `DELETE` | Versión del registro que el dispositivo tenía cuando el usuario hizo el cambio. |
+| `data` | `CREATE`, `UPDATE` | Todos los campos de la persona (mismas reglas de validación que `POST /personas`). |
+
+### Respuesta (`200 OK`)
+```json
+{
+    "results": [
+        { "index": 0, "op": "CREATE", "uuid": "c39a8c12-…", "status": "applied", "record": { "uuid": "c39a8c12-…", "version": 1, "…": "…" } },
+        { "index": 1, "op": "UPDATE", "uuid": "8f1a2b3c-…", "status": "conflict", "server": { "uuid": "8f1a2b3c-…", "version": 4, "…": "…" } },
+        { "index": 2, "op": "DELETE", "uuid": "0b1c2d3e-…", "status": "applied", "record": { "deleted_at": "2026-07-02T05:20:00.000Z", "version": 3, "…": "…" } }
+    ]
+}
+```
+
+### Estados por Operación
+
+| `status` | Significado | Qué debe hacer el dispositivo |
+|----------|-------------|-------------------------------|
+| `applied` | Se aplicó. También se devuelve en reintentos de una operación que ya se había aplicado. | Guardar `record` en local (actualiza `version`) y quitar la operación de la cola. |
+| `duplicate` | `CREATE` de un `uuid` que el servidor ya tiene (reintento tras perder la respuesta). | Guardar `record` en local y quitar la operación de la cola. |
+| `conflict` | `base_version` ya no coincide: alguien más cambió o borró el registro. No se aplicó nada. | Reemplazar la copia local por `server` (gana el servidor) o mostrar ambos al usuario para que decida y reenviar con la nueva `base_version`. Quitar la operación de la cola. |
+| `not_found` | `UPDATE`/`DELETE` de un `uuid` que el servidor no conoce. | Revisar la cola: normalmente falta enviar antes su `CREATE`. |
+| `invalid` | No pasó la validación. `errors` trae el detalle por campo. | Quitar de la cola y avisar al usuario: reintentar no cambiará el resultado. |
+| `rejected` | La base de datos la rechazó, por ejemplo correo ya registrado. `message` explica el motivo. | Quitar de la cola y avisar al usuario para que corrija el dato. |
+
+### Reintentos e Idempotencia
+- Si la petición falla por red o responde `500`, se debe **reenviar el mismo lote sin cambios**. Gracias al `uuid` y a `base_version`, las operaciones que ya se aplicaron responden `applied` o `duplicate` y no generan duplicados.
+- Un `CREATE` seguido de un `UPDATE` del mismo registro puede ir en el mismo lote (el `UPDATE` con `base_version: 1`).
+- Errores del lote completo (`400`): `operations` vacío o ausente, o más de 200 operaciones.
+
+### Flujo Recomendado en Android (WorkManager)
+1. **PUSH:** enviar la cola pendiente (en lotes de hasta 200) y procesar cada resultado según la tabla anterior.
+2. **PULL:** llamar a `GET /sync?last_change_id=X` hasta que llegue un lote incompleto, aplicar cada cambio en Room por `uuid` (si `data.version` es mayor que la local) y guardar el nuevo `last_change_id`.
+
+---
+
 # Respuestas de Error Estándar
 
 ## Error de Validación (`400 Bad Request`)
@@ -315,9 +413,9 @@ Devuelto por PostgreSQL cuando se intenta insertar o modificar una persona utili
 
 | Código | Estado | Uso en la API |
 |:------:|:-------|:--------------|
-| **200** | `OK` | Consulta exitosa (`GET`) o modificación realizada (`PUT`, `DELETE`). |
+| **200** | `OK` | Consulta exitosa (`GET`), modificación realizada (`PUT`, `DELETE`) o lote procesado (`POST /sync/push`, con un estado por operación). |
 | **201** | `Created` | Registro insertado correctamente en la base de datos (`POST`). |
 | **400** | `Bad Request` | Falla en las reglas de validación de entradas de `express-validator`. |
 | **404** | `Not Found` | El ID solicitado no existe o ya fue eliminado lógicamente. |
-| **409** | `Conflict` | Violación de restricción única en la base de datos (Correo duplicado). |
+| **409** | `Conflict` | Correo duplicado, o `version` desactualizada en `PUT /personas/:id` (incluye el registro actual en `data`). |
 | **500** | `Internal Error` | Excepción no controlada o fallo de conexión con PostgreSQL. |

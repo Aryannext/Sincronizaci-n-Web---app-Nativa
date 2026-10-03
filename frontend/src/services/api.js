@@ -7,7 +7,10 @@ async function handleResponse(response) {
   const data = await response.json();
   if (!response.ok) {
     const errorMsg = data.message || (data.errors && data.errors.map(e => `${e.campo}: ${e.mensaje}`).join(', ')) || 'Error en la petición API';
-    throw new Error(errorMsg);
+    const error = new Error(errorMsg);
+    error.status = response.status;
+    error.data = data.data;
+    throw error;
   }
   return data;
 }

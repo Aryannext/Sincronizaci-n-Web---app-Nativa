@@ -37,8 +37,19 @@ const crearPersonaValidator = [
 
 ]
 
-// El PUT reemplaza todos los campos, así que exige las mismas reglas que el POST
-const actualizarPersonaValidator = crearPersonaValidator
+// El PUT reemplaza todos los campos, así que exige las mismas reglas que el POST.
+// version es opcional: si llega, el servidor rechaza el cambio con 409 cuando ya no coincide.
+const actualizarPersonaValidator = [
+
+    ...crearPersonaValidator,
+
+    body("version")
+        .optional({ values: "null" })
+        .isInt({ min: 1 })
+        .withMessage("La versión debe ser un entero mayor o igual a 1.")
+        .toInt()
+
+]
 
 module.exports = {
     crearPersonaValidator,

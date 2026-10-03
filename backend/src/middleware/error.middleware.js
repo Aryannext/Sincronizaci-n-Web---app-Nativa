@@ -10,7 +10,9 @@ const errorMiddleware = (error, req, res, next) => {
 
             success: false,
 
-            message: error.message
+            message: error.message,
+
+            ...(error.data !== undefined && { data: error.data })
 
         })
 
