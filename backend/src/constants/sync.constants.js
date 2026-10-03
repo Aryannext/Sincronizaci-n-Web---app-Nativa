@@ -16,8 +16,12 @@ const PUSH_STATUS = {
 
 const MAX_PUSH_OPERATIONS = 200
 
+// Máximo de eventos por página en GET /api/sync
+const MAX_PULL_LIMIT = 1000
+
 module.exports = {
     SYNC_OPERATIONS,
     PUSH_STATUS,
-    MAX_PUSH_OPERATIONS
+    MAX_PUSH_OPERATIONS,
+    MAX_PULL_LIMIT
 }

@@ -52,7 +52,7 @@ const obtenerPersonaPorId = async (id) => {
 
 }
 
-const crearPersona = async (persona) => {
+const crearPersona = async (persona, usuarioId) => {
 
     const client = await pool.connect()
 
@@ -90,7 +90,8 @@ const crearPersona = async (persona) => {
             client,
             TABLES.PERSONAS,
             nuevaPersona.uuid,
-            SYNC_OPERATIONS.CREATE
+            SYNC_OPERATIONS.CREATE,
+            usuarioId
         )
 
         await client.query("COMMIT")
@@ -111,7 +112,7 @@ const crearPersona = async (persona) => {
 
 }
 
-const actualizarPersona = async (id, persona) => {
+const actualizarPersona = async (id, persona, usuarioId) => {
 
     const client = await pool.connect()
 
@@ -181,7 +182,8 @@ const actualizarPersona = async (id, persona) => {
             client,
             TABLES.PERSONAS,
             personaActualizada.uuid,
-            SYNC_OPERATIONS.UPDATE
+            SYNC_OPERATIONS.UPDATE,
+            usuarioId
         )
 
         await client.query("COMMIT")
@@ -202,7 +204,7 @@ const actualizarPersona = async (id, persona) => {
 
 }
 
-const eliminarPersona = async (id) => {
+const eliminarPersona = async (id, usuarioId) => {
 
     const client = await pool.connect()
 
@@ -235,7 +237,8 @@ const eliminarPersona = async (id) => {
             client,
             TABLES.PERSONAS,
             personaEliminada.uuid,
-            SYNC_OPERATIONS.DELETE
+            SYNC_OPERATIONS.DELETE,
+            usuarioId
         )
 
         await client.query("COMMIT")

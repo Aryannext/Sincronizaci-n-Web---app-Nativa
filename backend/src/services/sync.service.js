@@ -4,20 +4,23 @@ const registrarCambio = async (
     client,
     tableName,
     recordUuid,
-    operation
+    operation,
+    usuarioId = null
 ) => {
 
     await client.query(`
         INSERT INTO sync_log (
             table_name,
             record_uuid,
-            operation
+            operation,
+            usuario_id
         )
-        VALUES ($1, $2, $3)
+        VALUES ($1, $2, $3, $4)
     `, [
         tableName,
         recordUuid,
-        operation
+        operation,
+        usuarioId
     ])
 }
 
@@ -33,6 +36,7 @@ const obtenerCambios = async (
             sl.record_uuid,
             sl.operation,
             sl.created_at,
+            u.nombre AS usuario,
 
             json_build_object(
                 'uuid', p.uuid,
@@ -48,6 +52,9 @@ const obtenerCambios = async (
 
         LEFT JOIN personas p
             ON p.uuid = sl.record_uuid
+
+        LEFT JOIN usuarios u
+            ON u.id = sl.usuario_id
 
         WHERE sl.change_id > $1
 

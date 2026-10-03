@@ -2,7 +2,13 @@ const AppError = require("../errors/AppError")
 
 const errorMiddleware = (error, req, res, next) => {
 
-    console.error(error)
+    // Los errores esperados (401, 403, 404, validación...) no se registran con traza:
+    // bajo un ataque llenarían los logs sin aportar nada
+    const esperado = error instanceof AppError && error.statusCode < 500
+
+    if (!esperado && !error.type) {
+        console.error(error)
+    }
 
     if (error instanceof AppError) {
 
@@ -16,6 +22,15 @@ const errorMiddleware = (error, req, res, next) => {
 
         })
 
+    }
+
+    // Errores del lector de JSON de Express (cuerpo mal formado o demasiado grande)
+    if (error.type === "entity.parse.failed") {
+        return res.status(400).json({ success: false, message: "El cuerpo de la petición no es un JSON válido." })
+    }
+
+    if (error.type === "entity.too.large") {
+        return res.status(413).json({ success: false, message: "El cuerpo de la petición es demasiado grande." })
     }
 
     switch (error.code) {

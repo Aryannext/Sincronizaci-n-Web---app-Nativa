@@ -98,13 +98,37 @@ cd backend
 npm install
 
 # Configurar variables de entorno (Crear archivo .env)
-cp .env.example .env  # Configura tus credenciales de PostgreSQL en .env
+cp .env.example .env  # Configura PostgreSQL y JWT_SECRET en .env
+
+# Generar un JWT_SECRET (cópialo en .env; sin él el servidor no arranca)
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
 # Iniciar servidor en modo desarrollo (Puerto 3000)
 npm run dev
 ```
 
-Crea la base de datos ejecutando en orden `01_create_database.sql`, `02_create_tables.sql` y `03_seed.sql` (carpeta `backend/src/database/`). Si tu base ya existía sin la columna `version`, ejecuta también `04_add_version_column.sql`.
+Crea la base de datos ejecutando **en orden** los scripts de `backend/src/database/`: `01_create_database.sql`, `02_create_tables.sql`, `03_seed.sql`, `04_add_version_column.sql` y `05_create_usuarios.sql`. Los scripts 04 y 05 también sirven para actualizar una base ya existente.
+
+#### Crear usuarios
+No existe registro público: los usuarios se crean desde la consola del servidor. La contraseña se pide por teclado (mínimo 10 caracteres).
+```bash
+# Administrador del panel web
+npm run crear-usuario -- --correo admin@tuempresa.com --nombre "Ana Admin" --rol admin
+
+# Un operador por cada dispositivo o persona en terreno
+npm run crear-usuario -- --correo tablet1@tuempresa.com --nombre "Tablet 1" --rol operador
+
+# Cambiar la contraseña / reactivar
+npm run crear-usuario -- --correo tablet1@tuempresa.com --actualizar
+
+# Revocar el acceso (ej. dispositivo perdido): sus sesiones dejan de funcionar al momento
+npm run crear-usuario -- --correo tablet1@tuempresa.com --desactivar
+```
+
+| Rol | Uso | Acceso |
+|-----|-----|--------|
+| `admin` | Panel web | Todo: `/api/personas`, `/api/sync`, `/api/sync/push` |
+| `operador` | App Android | Solo sincronización: `/api/sync` y `/api/sync/push` |
 
 ### 3. Configurar y Ejecutar la Web App (Frontend)
 ```bash
@@ -119,9 +143,32 @@ npm run dev
 ```
 Abre tu navegador en: `http://localhost:5173/`
 
+Inicia sesión con un usuario `admin`.
+
 ### 4. Conectar el Teléfono o Emulador Android
 1. Asegúrate de que tu PC y tu teléfono móvil estén en la **misma red Wi-Fi**.
 2. Configura la IP de tu servidor (ej. `http://192.168.X.X:3000`) en el archivo de configuración del cliente móvil (`network_security_config.xml` y `PersonaApi.kt`).
+3. La app debe iniciar sesión con un usuario `operador` (`POST /api/auth/login`) y enviar el token en cada petición. Ver [docs/api.md](docs/api.md#autenticación).
+
+---
+
+## Despliegue en Internet
+
+La API maneja datos personales, así que en Internet **solo debe servirse por HTTPS**. Node no gestiona los certificados: se pone un proxy delante (Caddy, Nginx o el del hosting) que termina HTTPS y reenvía a la API.
+
+1. En el `.env` del servidor:
+   - `HOST=127.0.0.1`: solo el proxy puede llegar a la API.
+   - `TRUST_PROXY=1`: para que el límite de peticiones vea la IP real del cliente.
+   - `CORS_ORIGINS=https://panel.tuempresa.com`: el dominio del panel web.
+   - Un `JWT_SECRET` propio de producción, distinto al de desarrollo.
+2. Ejemplo con [Caddy](https://caddyserver.com/), que obtiene y renueva el certificado solo:
+   ```
+   api.tuempresa.com {
+       reverse_proxy 127.0.0.1:3000
+   }
+   ```
+3. Compila el panel con `VITE_API_URL=https://api.tuempresa.com npm run build` y publica la carpeta `frontend/dist` en `panel.tuempresa.com`.
+4. En la app Android usa la URL `https://` y elimina cualquier excepción de tráfico en claro (`cleartextTrafficPermitted`) de `network_security_config.xml`.
 
 ---
 

@@ -19,11 +19,73 @@ El servidor Node.js se ejecuta vinculando explícitamente la interfaz `0.0.0.0` 
 - **Conexión en Red Local / Móvil Android (IP Privada):**
   `http://192.168.40.5:3000/api` *(Ejemplo de IP local configurada en `network_security_config.xml`)*
 
+En producción la API se sirve **solo por HTTPS** detrás de un proxy (ver "Despliegue en Internet" en el README).
+
 ### Headers Requeridos
-Todas las peticiones HTTP con carga útil deben especificar el tipo de contenido:
+Todas las peticiones HTTP con carga útil deben especificar el tipo de contenido, y todas las rutas excepto `GET /` y `POST /auth/login` requieren el token de sesión:
 ```http
 Content-Type: application/json
+Authorization: Bearer <token>
 ```
+
+---
+
+# Autenticación
+
+Los usuarios se crean desde la consola del servidor (`npm run crear-usuario`); no existe registro público.
+
+| Rol | Cliente | Rutas permitidas | Duración del token |
+|-----|---------|------------------|--------------------|
+| `admin` | Panel web | Todas | 8 horas (`JWT_EXPIRES_ADMIN`) |
+| `operador` | App Android | `GET /sync`, `POST /sync/push` | 30 días (`JWT_EXPIRES_OPERADOR`) |
+
+## Iniciar Sesión (`POST /auth/login`)
+- **Límite:** 10 intentos fallidos cada 15 minutos por IP (`429` al superarlo). Los inicios de sesión correctos no cuentan.
+- El correo no distingue mayúsculas. Un correo inexistente y una contraseña incorrecta devuelven el mismo `401`, para no revelar qué correos están registrados.
+
+### Cuerpo de la Petición (`Body`)
+```json
+{
+    "correo": "tablet1@tuempresa.com",
+    "password": "contraseña-del-usuario"
+}
+```
+
+### Respuesta Exitosa (`200 OK`)
+```json
+{
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…",
+    "usuario": {
+        "id": 2,
+        "correo": "tablet1@tuempresa.com",
+        "nombre": "Tablet 1",
+        "rol": "operador",
+        "activo": true
+    }
+}
+```
+
+### Credenciales Incorrectas (`401 Unauthorized`)
+```json
+{
+    "success": false,
+    "message": "Correo o contraseña incorrectos."
+}
+```
+
+## Usuario Actual (`GET /auth/me`)
+Devuelve el usuario dueño del token. Sirve para comprobar si la sesión sigue activa.
+
+## Ciclo de Vida de la Sesión
+- El token se envía en `Authorization: Bearer <token>` en cada petición.
+- En cada petición el servidor comprueba que el usuario siga **activo**. Si se desactiva (`npm run crear-usuario -- --correo … --desactivar`), sus tokens dejan de funcionar al momento, sin esperar a que caduquen.
+- Ante un `401` el cliente debe borrar el token y pedir de nuevo el inicio de sesión. Un `403` significa que el rol no tiene permiso para esa ruta.
+
+### Guía para la App Android
+1. Guardar el token en `EncryptedSharedPreferences`, nunca la contraseña.
+2. Añadir la cabecera con un interceptor de OkHttp/Retrofit.
+3. Si `/sync/push` o `/sync` responden `401`, **no borrar la cola local de cambios**: pausar la sincronización, pedir al usuario que inicie sesión y reintentar después.
+4. El token dura 30 días: un dispositivo que pase más tiempo sin conexión tendrá que iniciar sesión de nuevo.
 
 ---
 
@@ -252,7 +314,7 @@ Punto de entrada principal para la sincronización PULL de clientes nativos Andr
 | Parámetro | Tipo | Obligatorio | Por Defecto | Descripción |
 |-----------|------|-------------|-------------|-------------|
 | `last_change_id` | Entero | No | `0` | ID del último cambio procesado localmente por el dispositivo. |
-| `limit` | Entero | No | `100` | Cantidad máxima de eventos a descargar en este lote. |
+| `limit` | Entero | No | `100` | Cantidad máxima de eventos a descargar en este lote (entre 1 y 1000). |
 
 - **Ejemplo:** `GET http://192.168.40.5:3000/api/sync?last_change_id=0&limit=100`
 
@@ -415,7 +477,11 @@ Devuelto por PostgreSQL cuando se intenta insertar o modificar una persona utili
 |:------:|:-------|:--------------|
 | **200** | `OK` | Consulta exitosa (`GET`), modificación realizada (`PUT`, `DELETE`) o lote procesado (`POST /sync/push`, con un estado por operación). |
 | **201** | `Created` | Registro insertado correctamente en la base de datos (`POST`). |
-| **400** | `Bad Request` | Falla en las reglas de validación de entradas de `express-validator`. |
+| **400** | `Bad Request` | Falla en las reglas de validación de entradas de `express-validator`, o JSON mal formado. |
+| **401** | `Unauthorized` | Falta el token, es inválido o caducó, o el usuario fue desactivado. También: credenciales incorrectas en el login. |
+| **403** | `Forbidden` | El rol del usuario no tiene permiso para la ruta, o el origen web no está en `CORS_ORIGINS`. |
 | **404** | `Not Found` | El ID solicitado no existe o ya fue eliminado lógicamente. |
 | **409** | `Conflict` | Correo duplicado, o `version` desactualizada en `PUT /personas/:id` (incluye el registro actual en `data`). |
+| **413** | `Payload Too Large` | El cuerpo de la petición supera 200 KB. |
+| **429** | `Too Many Requests` | Se superó el límite de peticiones por IP (general, o 10 intentos fallidos de login cada 15 minutos). |
 | **500** | `Internal Error` | Excepción no controlada o fallo de conexión con PostgreSQL. |
