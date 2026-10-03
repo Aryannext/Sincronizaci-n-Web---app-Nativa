@@ -19,30 +19,37 @@ El sistema utiliza un protocolo de **Sincronización Asíncrona (Push & Pull)** 
 ```mermaid
 graph TD
     subgraph Movil [Cliente Android Nativo - Terreno]
-        UI[App Interfaz Kotlin] -->|CRU / Offline| ROOM[(SQLite / Room DB)]
+        UI[App Interfaz Kotlin] -->|Crear / Editar / Borrar offline| ROOM[(SQLite / Room DB)]
         ROOM -->|Estado: PENDING| COLA[Cola de Sincronizacion]
         WORKER[WorkManager / NetworkMonitor]
     end
 
     subgraph Servidor [Backend Node.js & PostgreSQL]
+        AUTH[POST /api/auth/login - Token JWT]
         API[Express REST API - /api/sync & /api/personas]
-        PG[(PostgreSQL DB)]
-        LOG[(Tabla sync_log)]
-        API -->|1. Transaccion SQL| PG
-        API -->|2. Registro de Cambio| LOG
+        PG[(Tabla personas)]
+        LOG[(Tabla sync_log: cambio + usuario)]
+        USR[(Tabla usuarios: admin / operador)]
+        AUTH -->|Verifica contraseña y rol| USR
+        API -->|1. Transaccion SQL con control de version| PG
+        API -->|2. Registro del cambio| LOG
     end
 
     subgraph Web [Centro de Mando React - Oficina]
+        LOGIN[Login admin]
         DASH[Dashboard & KPIs]
-        CRUD[Gestion de Personas Real-Time]
+        CRUD[Gestion de Personas]
+        TRASH[Papelera con restauracion]
         FEED[Monitor Sync Live Feed]
     end
 
     WORKER -->|Detecta Wi-Fi / Datos| COLA
-    COLA -->|PUSH: Subir Cambios Pendientes| API
-    COLA -->|PULL: GET /sync?last_change_id=X| API
+    WORKER -->|Login operador| AUTH
+    COLA -->|PUSH: POST /sync/push + token| API
+    COLA -->|PULL: GET /sync?last_change_id=X + token| API
+    LOGIN --> AUTH
+    DASH & CRUD & TRASH -->|HTTPS + token admin| API
     LOG -->|Feed en Vivo / Auditoria| FEED
-    PG -->|Consulta Online| DASH & CRUD
 ```
 
 ---
