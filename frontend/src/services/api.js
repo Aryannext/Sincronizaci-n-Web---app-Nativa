@@ -1,5 +1,6 @@
 // Se configura con VITE_API_URL en frontend/.env (ver .env.example)
-export const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
+const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+export const API_ORIGIN = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
 const BASE_URL = `${API_ORIGIN}/api`;
 
 async function handleResponse(response) {
