@@ -112,6 +112,14 @@ export const api = {
     method: 'DELETE',
   }),
 
+  // Papelera
+  getPersonasEliminadas: () => request(`${BASE_URL}/personas/eliminadas`),
+
+  restaurarPersona: (id, version) => request(`${personaUrl(id)}/restaurar`, {
+    method: 'POST',
+    body: { version },
+  }),
+
   // Sincronización e Historial
   getSyncLog: (lastChangeId = 0, limit = 100) =>
     request(`${BASE_URL}/sync?last_change_id=${lastChangeId}&limit=${limit}`),

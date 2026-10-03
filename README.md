@@ -107,7 +107,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 npm run dev
 ```
 
-Crea la base de datos ejecutando **en orden** los scripts de `backend/src/database/`: `01_create_database.sql`, `02_create_tables.sql`, `03_seed.sql`, `04_add_version_column.sql` y `05_create_usuarios.sql`. Los scripts 04 y 05 también sirven para actualizar una base ya existente.
+Crea la base de datos ejecutando **en orden** los scripts de `backend/src/database/`: `01_create_database.sql`, `02_create_tables.sql`, `03_seed.sql`, `04_add_version_column.sql`, `05_create_usuarios.sql` y `06_correo_unico_activos.sql`. Los scripts 04, 05 y 06 también sirven para actualizar una base ya existente.
 
 #### Crear usuarios
 No existe registro público: los usuarios se crean desde la consola del servidor. La contraseña se pide por teclado (mínimo 10 caracteres).

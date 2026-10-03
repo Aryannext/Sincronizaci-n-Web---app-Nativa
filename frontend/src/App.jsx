@@ -11,6 +11,7 @@ import { Radio, AlertCircle, CheckCircle } from 'lucide-react';
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [personas, setPersonas] = useState([]);
+  const [eliminadas, setEliminadas] = useState([]);
   const [syncLogs, setSyncLogs] = useState([]);
   const [isConnected, setIsConnected] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,11 +46,13 @@ export default function App() {
       if (health) {
         // La recarga completa vuelve a descargar todo el historial
         const fromChangeId = quiet ? lastChangeIdRef.current : 0;
-        const [personasData, syncData] = await Promise.all([
+        const [personasData, syncData, eliminadasData] = await Promise.all([
           api.getPersonas(),
-          api.getSyncChangesSince(fromChangeId)
+          api.getSyncChangesSince(fromChangeId),
+          api.getPersonasEliminadas()
         ]);
         setPersonas(personasData);
+        setEliminadas(eliminadasData);
         lastChangeIdRef.current = quiet
           ? Math.max(lastChangeIdRef.current, syncData.last_change_id)
           : syncData.last_change_id;
@@ -93,6 +96,7 @@ export default function App() {
     sesion.cerrar();
     setUsuario(null);
     setPersonas([]);
+    setEliminadas([]);
     setSyncLogs([]);
     lastChangeIdRef.current = 0;
   };
@@ -121,6 +125,19 @@ export default function App() {
       } else {
         showToast(err.message, 'error');
       }
+      throw err;
+    }
+  };
+
+  const handleRestore = async (persona) => {
+    try {
+      const restaurada = await api.restaurarPersona(persona.id, persona.version);
+      showToast(`Se restauró a ${restaurada.nombre} ${restaurada.apellido}. Los móviles recibirán el cambio en la próxima sincronización.`);
+      await loadAllData(true);
+    } catch (err) {
+      showToast(err.message, 'error');
+      // Si otro la cambió o el correo ya está en uso, la lista también está desactualizada
+      if (err.status === 409) await loadAllData(true);
       throw err;
     }
   };
@@ -206,6 +223,7 @@ export default function App() {
         {activeTab === 'dashboard' && (
           <DashboardView 
             personas={personas} 
+            eliminadas={eliminadas} 
             syncLogs={syncLogs} 
             onNavigate={setActiveTab} 
           />
@@ -231,7 +249,8 @@ export default function App() {
 
         {activeTab === 'trash' && (
           <TrashView 
-            syncLogs={syncLogs} 
+            eliminadas={eliminadas} 
+            onRestore={handleRestore} 
           />
         )}
       </main>

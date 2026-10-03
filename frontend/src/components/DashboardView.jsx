@@ -12,9 +12,8 @@ import {
   Activity
 } from 'lucide-react';
 
-export default function DashboardView({ personas = [], syncLogs = [], onNavigate }) {
+export default function DashboardView({ personas = [], eliminadas = [], syncLogs = [], onNavigate }) {
   const activePersonas = personas.filter(p => !p.deleted_at);
-  const deletedPersonas = syncLogs.filter(log => log.operation === 'DELETE');
   const totalSyncs = syncLogs.length;
   
   // Calcular promedios y actividad
@@ -54,7 +53,7 @@ export default function DashboardView({ personas = [], syncLogs = [], onNavigate
     },
     {
       title: 'Papelera Offline',
-      value: deletedPersonas.length,
+      value: eliminadas.length,
       change: 'Borrado lógico',
       icon: Trash2,
       color: '#ef4444',

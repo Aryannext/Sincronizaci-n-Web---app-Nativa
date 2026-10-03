@@ -302,6 +302,43 @@ No destruye el registro físicamente en PostgreSQL. Escribe la marca de tiempo e
 
 ---
 
+## 6. Ver la Papelera (`GET /personas/eliminadas`)
+Lista las personas con borrado lógico (`deleted_at` con fecha), las más recientes primero. Mismo formato que `GET /personas`.
+
+- **Método:** `GET`
+- **Ruta:** `/personas/eliminadas`
+- **Rol:** `admin`
+
+---
+
+## 7. Restaurar una persona (`POST /personas/:id/restaurar`)
+Saca a una persona de la papelera: pone `deleted_at` en `null`, incrementa `version` y registra un evento **`UPDATE`** en `sync_log`. Los dispositivos lo reciben en el siguiente pull como un registro con `deleted_at: null` y una versión mayor, y lo vuelven a insertar sin necesitar un tipo de operación nuevo.
+
+- **Método:** `POST`
+- **Ruta:** `/personas/:id/restaurar`
+- **Rol:** `admin`
+
+### Cuerpo de la Petición (`Body`, opcional)
+```json
+{
+    "version": 3
+}
+```
+Si se envía `version` y no coincide con la del servidor, no se restaura y se responde `409` con el registro actual en `data` (igual que en `PUT`).
+
+### Respuesta Exitosa (`200 OK`)
+El registro restaurado, con `deleted_at: null` y la nueva `version`.
+
+### Errores
+| Código | Motivo |
+|--------|--------|
+| `404` | No existe una persona con ese `id`. |
+| `409` | La persona no está en la papelera, la `version` no coincide, o **otra persona activa ya usa su correo**: "No se puede restaurar: otra persona activa ya usa ese correo." |
+
+> **Unicidad del correo:** el correo solo debe ser único entre personas **activas**. El de una persona en la papelera se puede volver a usar para otra; en ese caso, la persona borrada no se puede restaurar hasta que se cambie o borre la otra.
+
+---
+
 # Endpoints de Sincronización Offline (PULL)
 
 ## 1. Descargar Historial de Cambios (`GET /sync`)
@@ -453,7 +490,7 @@ Devuelto por `express-validator` cuando se omiten campos obligatorios o no tiene
 ```
 
 ## Conflicto de Unicidad (`409 Conflict`)
-Devuelto por PostgreSQL cuando se intenta insertar o modificar una persona utilizando un correo electrónico que ya existe en la base de datos (incluso si pertenece a un registro eliminado con borrado lógico si no se ha aplicado índice condicional).
+Devuelto por PostgreSQL cuando se intenta crear, modificar o restaurar una persona con un correo que ya usa otra persona **activa**. Los correos de personas en la papelera no cuentan (índice único parcial `WHERE deleted_at IS NULL`).
 ```json
 {
     "success": false,
@@ -481,7 +518,7 @@ Devuelto por PostgreSQL cuando se intenta insertar o modificar una persona utili
 | **401** | `Unauthorized` | Falta el token, es inválido o caducó, o el usuario fue desactivado. También: credenciales incorrectas en el login. |
 | **403** | `Forbidden` | El rol del usuario no tiene permiso para la ruta, o el origen web no está en `CORS_ORIGINS`. |
 | **404** | `Not Found` | El ID solicitado no existe o ya fue eliminado lógicamente. |
-| **409** | `Conflict` | Correo duplicado, o `version` desactualizada en `PUT /personas/:id` (incluye el registro actual en `data`). |
+| **409** | `Conflict` | Correo ya usado por otra persona activa, o `version` desactualizada en `PUT /personas/:id` y al restaurar (incluye el registro actual en `data`). |
 | **413** | `Payload Too Large` | El cuerpo de la petición supera 200 KB. |
 | **429** | `Too Many Requests` | Se superó el límite de peticiones por IP (general, o 10 intentos fallidos de login cada 15 minutos). |
 | **500** | `Internal Error` | Excepción no controlada o fallo de conexión con PostgreSQL. |
