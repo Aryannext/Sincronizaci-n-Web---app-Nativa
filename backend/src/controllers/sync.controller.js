@@ -36,7 +36,7 @@ const aplicarCambios = asyncHandler(async (req, res) => {
         )
     }
 
-    const results = await syncPushService.aplicarOperaciones(operations)
+    const results = await syncPushService.aplicarOperaciones(operations, req.usuario.id)
 
     res.status(200).json({ results })
 

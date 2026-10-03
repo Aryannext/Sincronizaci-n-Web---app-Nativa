@@ -23,7 +23,7 @@ const obtenerPorUuid = async (client, uuid) => {
 const mismosDatos = (persona, data) =>
     CAMPOS_PERSONA.every(campo => persona[campo] === data[campo])
 
-const crear = async (client, { uuid, data }) => {
+const crear = async (client, { uuid, data }, usuarioId) => {
 
     // El uuid lo genera el móvil: si ya existe, es un reintento y no se duplica
     const resultado = await client.query(`
@@ -59,14 +59,15 @@ const crear = async (client, { uuid, data }) => {
         client,
         TABLES.PERSONAS,
         creada.uuid,
-        SYNC_OPERATIONS.CREATE
+        SYNC_OPERATIONS.CREATE,
+        usuarioId
     )
 
     return { status: PUSH_STATUS.APPLIED, record: creada }
 
 }
 
-const actualizar = async (client, { uuid, base_version, data }) => {
+const actualizar = async (client, { uuid, base_version, data }, usuarioId) => {
 
     const resultado = await client.query(`
         UPDATE personas
@@ -99,7 +100,8 @@ const actualizar = async (client, { uuid, base_version, data }) => {
             client,
             TABLES.PERSONAS,
             actualizada.uuid,
-            SYNC_OPERATIONS.UPDATE
+            SYNC_OPERATIONS.UPDATE,
+            usuarioId
         )
 
         return { status: PUSH_STATUS.APPLIED, record: actualizada }
@@ -126,7 +128,7 @@ const actualizar = async (client, { uuid, base_version, data }) => {
 
 }
 
-const eliminar = async (client, { uuid, base_version }) => {
+const eliminar = async (client, { uuid, base_version }, usuarioId) => {
 
     const resultado = await client.query(`
         UPDATE personas
@@ -152,7 +154,8 @@ const eliminar = async (client, { uuid, base_version }) => {
             client,
             TABLES.PERSONAS,
             eliminada.uuid,
-            SYNC_OPERATIONS.DELETE
+            SYNC_OPERATIONS.DELETE,
+            usuarioId
         )
 
         return { status: PUSH_STATUS.APPLIED, record: eliminada }
@@ -180,7 +183,7 @@ const MANEJADORES = {
     [SYNC_OPERATIONS.DELETE]: eliminar
 }
 
-const aplicarOperacion = async (client, operacionRecibida) => {
+const aplicarOperacion = async (client, operacionRecibida, usuarioId) => {
 
     const validacion = await validarOperacion(operacionRecibida)
 
@@ -200,7 +203,7 @@ const aplicarOperacion = async (client, operacionRecibida) => {
 
         await client.query("BEGIN")
 
-        const resultado = await MANEJADORES[operacion.op](client, operacion)
+        const resultado = await MANEJADORES[operacion.op](client, operacion, usuarioId)
 
         await client.query("COMMIT")
 
@@ -250,7 +253,7 @@ const aplicarOperacion = async (client, operacionRecibida) => {
 }
 
 // Aplica las operaciones en el orden recibido y devuelve un resultado por cada una
-const aplicarOperaciones = async (operaciones) => {
+const aplicarOperaciones = async (operaciones, usuarioId) => {
 
     const client = await pool.connect()
 
@@ -263,7 +266,7 @@ const aplicarOperaciones = async (operaciones) => {
         for (const [index, operacion] of operaciones.entries()) {
             resultados.push({
                 index,
-                ...(await aplicarOperacion(client, operacion)) // NOSONAR
+                ...(await aplicarOperacion(client, operacion, usuarioId)) // NOSONAR
             })
         }
 

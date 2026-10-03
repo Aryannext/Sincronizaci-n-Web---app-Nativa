@@ -4,7 +4,8 @@ import DashboardView from './components/DashboardView';
 import PersonasView from './components/PersonasView';
 import SyncMonitorView from './components/SyncMonitorView';
 import TrashView from './components/TrashView';
-import { api, API_ORIGIN } from './services/api';
+import LoginView from './components/LoginView';
+import { api, API_ORIGIN, sesion, onSesionExpirada } from './services/api';
 import { Radio, AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function App() {
@@ -17,6 +18,16 @@ export default function App() {
   const [toast, setToast] = useState(null);
   // Último change_id ya descargado: el polling solo pide los eventos nuevos
   const lastChangeIdRef = useRef(0);
+  const [usuario, setUsuario] = useState(() => sesion.obtener()?.usuario ?? null);
+  const [avisoLogin, setAvisoLogin] = useState('');
+
+  // Si el servidor rechaza el token (caducado o usuario desactivado), se vuelve al login
+  useEffect(() => {
+    onSesionExpirada(() => {
+      setUsuario(null);
+      setAvisoLogin('Tu sesión expiró. Inicia sesión de nuevo.');
+    });
+  }, []);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -51,8 +62,11 @@ export default function App() {
         });
       }
     } catch (err) {
-      console.error('Error cargando datos de sincronización:', err);
-      setIsConnected(false);
+      // Un 401 ya lo gestiona onSesionExpirada: no es un problema de conexión
+      if (err.status !== 401) {
+        console.error('Error cargando datos de sincronización:', err);
+        setIsConnected(false);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -60,13 +74,28 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!usuario) return undefined;
     loadAllData();
     // Auto polling para ver si los móviles subieron datos en background
     const interval = setInterval(() => {
       loadAllData(true);
     }, 8000);
     return () => clearInterval(interval);
-  }, [loadAllData]);
+  }, [loadAllData, usuario]);
+
+  const handleLogin = (datos) => {
+    sesion.guardar(datos);
+    setAvisoLogin('');
+    setUsuario(datos.usuario);
+  };
+
+  const handleLogout = () => {
+    sesion.cerrar();
+    setUsuario(null);
+    setPersonas([]);
+    setSyncLogs([]);
+    lastChangeIdRef.current = 0;
+  };
 
   // CRUD Handlers con actualización automática
   const handleCreate = async (data) => {
@@ -107,6 +136,10 @@ export default function App() {
     }
   };
 
+  if (!usuario) {
+    return <LoginView onLogin={handleLogin} aviso={avisoLogin} />;
+  }
+
   return (
     <div className="app-container">
       {/* Toast Notification */}
@@ -139,6 +172,8 @@ export default function App() {
         isConnected={isConnected} 
         onRefresh={() => loadAllData(false)}
         isRefreshing={isRefreshing}
+        usuario={usuario}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}

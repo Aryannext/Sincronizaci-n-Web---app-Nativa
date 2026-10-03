@@ -8,11 +8,12 @@ import {
   Database,
   Smartphone,
   ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  LogOut
 } from 'lucide-react';
 import { API_ORIGIN } from '../services/api';
 
-export default function Sidebar({ activeTab, setActiveTab, isConnected, onRefresh, isRefreshing }) {
+export default function Sidebar({ activeTab, setActiveTab, isConnected, onRefresh, isRefreshing, usuario, onLogout }) {
   const menuItems = [
     { id: 'dashboard', label: 'Centro de Mando', icon: LayoutDashboard },
     { id: 'personas', label: 'Gestión Personas', icon: Users },
@@ -138,6 +139,39 @@ export default function Sidebar({ activeTab, setActiveTab, isConnected, onRefres
           );
         })}
       </nav>
+
+      {/* Usuario conectado */}
+      {usuario && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          padding: '12px 14px',
+          marginBottom: '12px',
+          borderRadius: '12px',
+          background: 'rgba(255, 255, 255, 0.03)',
+          border: '1px solid var(--border-color)'
+        }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {usuario.nombre}
+            </div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {usuario.correo}
+            </div>
+          </div>
+          <button
+            onClick={onLogout}
+            className="btn-ghost"
+            style={{ padding: '6px', borderRadius: '8px', border: 'none', flexShrink: 0 }}
+            title="Cerrar sesión"
+            aria-label="Cerrar sesión"
+          >
+            <LogOut size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Footer Info */}
       <div style={{

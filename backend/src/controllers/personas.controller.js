@@ -21,9 +21,7 @@ const obtenerPersonaPorId = asyncHandler(async (_req, res) => {
 
 const crearPersona = asyncHandler(async (_req, res) => {
 
-    console.log("BODY:", _req.body)
-
-    const persona = await personasService.crearPersona(_req.body)
+    const persona = await personasService.crearPersona(_req.body, _req.usuario.id)
 
     res.status(201).json(persona)
 
@@ -35,7 +33,8 @@ const actualizarPersona = asyncHandler(async (_req, res) => {
 
     const persona = await personasService.actualizarPersona(
         id,
-        _req.body
+        _req.body,
+        _req.usuario.id
     )
 
     res.status(200).json(persona)
@@ -46,7 +45,7 @@ const eliminarPersona = asyncHandler(async (_req, res) => {
 
     const { id } = _req.params
 
-    const persona = await personasService.eliminarPersona(id)
+    const persona = await personasService.eliminarPersona(id, _req.usuario.id)
 
     res.status(200).json(persona)
 
