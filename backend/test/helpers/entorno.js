@@ -99,9 +99,8 @@ const crearEntorno = async () => {
     const { hashPassword } = require("../../src/services/auth.service")
     const app = require("../../src/app")
 
-    for (const archivo of MIGRACIONES) {
-        await pool.query(leerSql(archivo))
-    }
+    // Todas las migraciones en una sola consulta: PostgreSQL las ejecuta en orden
+    await pool.query(MIGRACIONES.map(leerSql).join(";\n"))
 
     const crearUsuario = async (correo, nombre, rol, password, activo = true) => {
         await pool.query(

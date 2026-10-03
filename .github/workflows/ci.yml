@@ -28,7 +28,11 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      - run: npm ci
+      # Ninguna dependencia ejecuta scripts al instalarse...
+      - run: npm ci --ignore-scripts
+      # ...salvo el binario de PostgreSQL para Linux, que necesita recrear los
+      # enlaces simbólicos de sus librerías (scripts/hydrate-symlinks.js)
+      - run: npm rebuild @embedded-postgres/linux-x64
       # Levanta su propio PostgreSQL embebido: no necesita servicios externos
       - run: npm test
 
@@ -46,6 +50,7 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - run: npx oxlint --deny-warnings
+      - run: npm ci --ignore-scripts
+      # oxlint instalado por npm ci (versión fijada en package-lock.json)
+      - run: npm run lint -- --deny-warnings
       - run: npm run build
