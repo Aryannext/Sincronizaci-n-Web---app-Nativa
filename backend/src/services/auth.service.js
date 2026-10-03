@@ -53,11 +53,16 @@ const iniciarSesion = async (correo, password) => {
         throw new AppError(CREDENCIALES_INVALIDAS, 401)
     }
 
-    const { password_hash: _omitido, ...datosUsuario } = usuario
-
     return {
         token: generarToken(usuario),
-        usuario: datosUsuario
+        // Sin password_hash: solo los datos públicos del usuario
+        usuario: {
+            id: usuario.id,
+            correo: usuario.correo,
+            nombre: usuario.nombre,
+            rol: usuario.rol,
+            activo: usuario.activo
+        }
     }
 
 }
@@ -83,7 +88,7 @@ const verificarToken = async (token) => {
 
     const usuario = resultado.rows[0]
 
-    if (!usuario || !usuario.activo) {
+    if (!usuario?.activo) {
         throw new AppError("Sesión inválida o expirada. Inicia sesión de nuevo.", 401)
     }
 
