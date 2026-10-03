@@ -55,9 +55,7 @@ const validarOperacion = async (operacion) => {
         }
     }
 
-    for (const validador of validadores) {
-        await validador.run(req)
-    }
+    await Promise.all(validadores.map(validador => validador.run(req)))
 
     const errores = validationResult(req)
 

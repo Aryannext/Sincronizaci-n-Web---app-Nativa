@@ -258,10 +258,12 @@ const aplicarOperaciones = async (operaciones) => {
 
         const resultados = []
 
+        // Secuencial a propósito: el orden importa (un UPDATE puede depender del CREATE
+        // anterior del mismo lote) y todas las operaciones comparten la misma conexión.
         for (const [index, operacion] of operaciones.entries()) {
             resultados.push({
                 index,
-                ...(await aplicarOperacion(client, operacion))
+                ...(await aplicarOperacion(client, operacion)) // NOSONAR
             })
         }
 
