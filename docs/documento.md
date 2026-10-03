@@ -4,6 +4,8 @@ Esta aplicación utiliza una estrategia **Offline-First**. Esto significa que la
 
 ---
 
+> **Alcance del repositorio:** aquí están el backend (Node.js + PostgreSQL) y el panel web (React). La app Android (Kotlin + Room) no forma parte de este repositorio; las secciones sobre Android describen cómo debe integrarse con la API. El contrato exacto está en [api.md](api.md).
+
 ## 1. Visión General de la Arquitectura
 El sistema utiliza una arquitectura de **Tres Capas** diseñada para funcionar sin conexión a internet de forma indefinida y sincronizarse automáticamente al detectar red:
 
@@ -47,12 +49,22 @@ graph TD
 
 ---
 
-## 2. Configuración de Conexión Local (Detalle Crítico)
-Para que la comunicación funcione entre los dispositivos Android (móvil físico o emulador) y el servidor local en tu PC (ejemplo de red: `192.168.40.5`), se implementaron tres niveles de configuración y acceso:
+## 2. Configuración de Conexión (Local y Producción)
 
-1. **Nivel de API (Android):** En el archivo `PersonaApi.kt`, la constante `BASE_URL` apunta directamente a la IP privada de tu computadora (ej: `http://192.168.40.5:3000/api/`). Esto permite que el móvil salga de su propia red interna y alcance el servidor en la red Wi-Fi local.
-2. **Nivel de Seguridad (Android):** En `app/src/main/res/xml/network_security_config.xml`, se autorizó explícitamente el tráfico *cleartext* (HTTP sin cifrado SSL/TLS) para la dirección IP `192.168.40.5`. Sin esta directiva, el sistema operativo Android bloquea la petición HTTP por políticas de seguridad modernas.
-3. **Nivel de Servidor (Node.js):** El servidor Express está configurado en `server.js` con la instrucción `app.listen(PORT, '0.0.0.0')`. Escuchar en la interfaz `0.0.0.0` permite que Node.js reciba peticiones externas de cualquier dispositivo dentro de la misma red local (como tu teléfono físico), y no únicamente desde el propio PC (`localhost` o `127.0.0.1`). Además, se habilitó el middleware `cors()` para aceptar tráfico cruzado.
+### Desarrollo en red local
+Para que un dispositivo Android (móvil físico o emulador) alcance el servidor en tu PC (ejemplo de red: `192.168.40.5`):
+
+1. **Nivel de API (Android):** En `PersonaApi.kt`, `BASE_URL` apunta a la IP privada de tu computadora (ej: `http://192.168.40.5:3000/api/`).
+2. **Nivel de Seguridad (Android):** En `network_security_config.xml` se autoriza el tráfico *cleartext* (HTTP sin cifrar) **solo para esa IP de desarrollo**.
+3. **Nivel de Servidor (Node.js):** Con `HOST=0.0.0.0` en el `.env`, Express acepta conexiones de otros dispositivos de la red y no solo de `localhost`.
+
+### Producción (Internet)
+- La API se sirve **solo por HTTPS** detrás de un proxy (Caddy, Nginx…), con `HOST=127.0.0.1` y `TRUST_PROXY=1`. Ver "Despliegue en Internet" en el README.
+- En la app se usa la URL `https://` y se **elimina** la excepción de tráfico en claro.
+- CORS solo admite los orígenes de `CORS_ORIGINS` (el dominio del panel web). La app nativa no envía `Origin`, así que no le afecta.
+
+### Autenticación
+Toda petición, salvo el login, requiere `Authorization: Bearer <token>`. La app inicia sesión con un usuario de rol **operador** (`POST /api/auth/login`), guarda el token en `EncryptedSharedPreferences` y lo añade con un interceptor de Retrofit. El token dura 30 días.
 
 ---
 
@@ -98,10 +110,11 @@ Utiliza la librería oficial **Android WorkManager** para garantizar la ejecuci�
   1. Ejecuta primero `tryToSyncPush()` para vaciar la tabla `pending_changes` y subir todas las creaciones, ediciones o borrados pendientes.
   2. Ejecuta inmediatamente después `syncPull()`, consultando el endpoint `GET /api/sync?last_change_id=X` para descargar las novedades que otros usuarios o administradores web hayan realizado.
 
-### C. Estrategia de Conflicto y Resolución (`Upsert`)
+### C. Estrategia de Conflicto y Resolución
 Para evitar duplicados, colisiones de IDs y pérdida de información en entornos concurrentes:
-- **Identificadores Universales (`UUID`):** Cada registro nace con un UUID único generado en el cliente o servidor, evitando colisiones aunque dos móviles creen registros offline simultáneamente.
-- **Lógica de Conflicto (`upsertSync`):** Al descargar datos del servidor, el DAO de Room compara el campo `version`. Si el UUID ya existe localmente, pero el dato entrante del servidor tiene un número de `version` mayor, el móvil sobrescribe el registro local con la versión oficial del servidor.
+- **El `uuid` lo genera el móvil** al crear el registro offline y nunca cambia. Si un `CREATE` se reenvía (por ejemplo, porque se perdió la respuesta), el servidor responde `duplicate` y no crea otra fila.
+- **Control de versiones optimista en el PUSH:** cada `UPDATE` y `DELETE` lleva la `base_version` que el móvil conocía. Si alguien cambió el registro antes, el servidor **no aplica nada** y responde `conflict` con la versión actual (`server`). La app reemplaza su copia local por la del servidor, o se la muestra al usuario para que decida y reenvíe.
+- **PULL:** al descargar cambios, el DAO de Room aplica cada registro por `uuid` solo si su `version` es mayor que la local. Una persona restaurada desde la papelera llega como `UPDATE` con `deleted_at: null` y se vuelve a insertar.
 
 ### Diagrama de Secuencia: Flujo Transaccional Push & Pull
 ```mermaid
@@ -122,12 +135,12 @@ sequenceDiagram
     Note over Worker, PG: Fase 2: Restauracion de Red y Sincronizacion PUSH
     Worker->>Worker: Detecta conexion Wi-Fi / Datos
     Worker->>Room: Lee tareas de pending_changes
-    Worker->>API: POST / PUT /api/personas (Payload JSON)
-    API->>API: Valida reglas con express-validator
-    API->>PG: Transaccion SQL (Upsert en personas + Registro en sync_log)
-    PG-->>API: Confirmacion de guardado
-    API-->>Worker: HTTP 201 Created / 200 OK (Objeto final con version)
-    Worker->>Room: Actualiza a syncStatus = SYNCED y limpia pending_changes
+    Worker->>API: POST /api/sync/push (lote con uuid y base_version, token Bearer)
+    API->>API: Valida token, rol y cada operacion
+    API->>PG: Por operacion: transaccion SQL (cambio en personas + sync_log)
+    PG-->>API: Confirmacion o version distinta
+    API-->>Worker: HTTP 200 OK (estado por operacion: applied / duplicate / conflict...)
+    Worker->>Room: Aplica cada resultado y limpia pending_changes
 
     Note over Worker, PG: Fase 3: Sincronizacion Incremental PULL
     Worker->>API: GET /api/sync?last_change_id=X
@@ -144,15 +157,16 @@ El ciclo de vida transaccional sigue estos 6 pasos secuenciales:
 
 1. **Creación Offline:** El usuario en terreno crea una Persona en la app Android -> Se guarda en **Room** con `syncStatus = PENDING_INSERT` -> Se inserta la tarea en la tabla `pending_changes`.
 2. **Detección de Red:** El móvil recupera cobertura o se conecta al Wi-Fi -> El sistema operativo despierta al **SyncWorker**.
-3. **Fase Push:** El SyncWorker lee la cola `pending_changes` -> Realiza una petición HTTP `POST /api/personas` enviando el payload JSON a Node.js.
-4. **Procesamiento en Backend:** Node.js recibe el JSON -> Valida los campos con `express-validator` -> Inserta el registro en **PostgreSQL** y escribe una fila de auditoría en `sync_log`.
-5. **Respuesta Confirmada:** Node.js responde con código HTTP `201 Created` o `200 OK` devolviendo el objeto final consolidado (incluyendo la `version` e ID interno de Postgres).
-6. **Cierre de Ciclo en Móvil:** El móvil recibe la respuesta del servidor -> Actualiza el registro en Room a `syncStatus = SYNCED` -> Elimina la tarea completada de la tabla `pending_changes`.
+3. **Fase Push:** El SyncWorker lee la cola `pending_changes` -> Envía el lote a `POST /api/sync/push` con el token del operador. Cada operación lleva su `uuid` y, en ediciones y borrados, la `base_version`.
+4. **Procesamiento en Backend:** Node.js valida el token y cada operación -> Aplica cada una en su propia transacción en **PostgreSQL** y escribe su fila de auditoría en `sync_log`, con el usuario que la hizo.
+5. **Respuesta Confirmada:** Node.js responde `200 OK` con un estado por operación: `applied`, `duplicate`, `conflict`, `not_found`, `invalid` o `rejected`, junto con el registro resultante (incluida su `version`).
+6. **Cierre de Ciclo en Móvil:** El móvil guarda en Room cada registro devuelto -> Marca `syncStatus = SYNCED` -> Elimina de `pending_changes` las operaciones resueltas. Qué hacer en cada estado está en [api.md](api.md).
 
 ---
 
 ## 6. Manejo de Errores y Resiliencia
 - **Servidor Caído o Inaccesible:** Si el dispositivo móvil tiene internet activo pero tu PC o servidor Node.js está apagado, la llamada de Retrofit lanza una excepción. El `SyncWorker` la captura y retorna `Result.retry()`. WorkManager reprogramará automáticamente el intento aplicando una política de *Backoff Exponencial* (esperando 1 minuto, luego 2, 4, 8, etc.), evitando saturar la red o gastar batería.
+- **Sesión Caducada o Revocada (`401`):** El SyncWorker **no borra** la cola `pending_changes`: pausa la sincronización, pide al usuario que inicie sesión de nuevo y reintenta después. Los reintentos son seguros: gracias al `uuid` y a `base_version` nada se aplica dos veces.
 - **Sobrevivencia al Cierre de la App:** Si el usuario cierra la aplicación deslizándola de las tareas recientes o apaga la pantalla justo mientras se está sincronizando, no hay pérdida de datos. WorkManager opera como un servicio del sistema del kernel de Android y completará la sincronización en segundo plano de manera totalmente independiente a la interfaz gráfica.
 
 ---
@@ -160,14 +174,16 @@ El ciclo de vida transaccional sigue estos 6 pasos secuenciales:
 ## 7. Centro de Mando Web (Complemento Administrativo)
 Mientras el cliente Android está optimizado para trabajadores en terreno (*Offline-First*), la aplicación web en **React + Vite** ofrece el control total en oficina:
 - **Monitor de Sincronización en Vivo:** Escucha y visualiza la tabla `sync_log`, mostrando en una línea de tiempo (*Timeline*) cada evento `CREATE`, `UPDATE` o `DELETE` que los móviles empujan al servidor.
-- **Inspector de Payloads JSON:** Permite a los supervisores o desarrolladores hacer clic en cualquier transacción del historial para auditar la estructura JSON exacta intercambiada.
-- **Papelera de Reciclaje (Borrado Lógico):** Visibiliza todos los registros donde `deleted_at IS NOT NULL`, garantizando auditoría total sobre los borrados realizados en campo.
+- **Inspector de Eventos:** Permite hacer clic en cualquier evento del historial para ver su detalle en JSON: operación, fecha, usuario que lo hizo y el **estado actual** del registro afectado (no una copia del momento del cambio).
+- **Papelera de Reciclaje (Borrado Lógico):** Muestra todos los registros donde `deleted_at IS NOT NULL` y permite **restaurarlos**. Un correo de una persona en la papelera se puede volver a usar.
+- **Acceso:** Solo usuarios con rol **admin** (login con correo y contraseña).
 
 ---
 
 ## 8. Guía de Verificación y Mantenimiento
-1. **Verificar IP Local:** Si cambias de red Wi-Fi o de enrutador, la IP privada de tu PC podría cambiar. Asegúrate de actualizar la constante `BASE_URL` en `PersonaApi.kt` y la autorización en `network_security_config.xml`.
+1. **Verificar IP Local (solo desarrollo):** Si cambias de red Wi-Fi o de enrutador, la IP privada de tu PC podría cambiar. Actualiza `BASE_URL` en `PersonaApi.kt` y la excepción de `network_security_config.xml`.
 2. **Inspeccionar Logs de Sincronización:** En Android Studio, abre la pestaña **Logcat** y filtra por las etiquetas `PersonaRepository` o `SyncWorker` para observar el flujo de peticiones HTTP en tiempo real.
-3. **Verificar Estado del Backend:** Asegúrate de que tu servidor Node.js esté ejecutándose (`npm run dev` en la carpeta `backend/`) y que el Firewall de Windows permita el tráfico entrante al puerto `3000`.
+3. **Gestionar Accesos:** Para dar de alta un dispositivo, crea un usuario operador con `npm run crear-usuario`. Si se pierde un dispositivo, desactívalo con `--desactivar`: su sesión deja de funcionar al momento.
+4. **Verificar Estado del Backend:** Asegúrate de que tu servidor Node.js esté ejecutándose (`npm run dev` en la carpeta `backend/`) y que el Firewall de Windows permita el tráfico entrante al puerto `3000`.
 
 *Esta arquitectura sólida garantiza que el usuario en terreno jamás pierda información valiosa, permitiéndole operar en zonas rurales o sin señal con la certeza de que todo su trabajo se sincronizará de forma invisible y segura al recuperar la conectividad.*

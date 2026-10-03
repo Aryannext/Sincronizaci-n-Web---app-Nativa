@@ -1,12 +1,11 @@
 import React from 'react';
 import { 
-  Users, 
-  RefreshCw, 
-  Trash2, 
-  GitBranch, 
-  ArrowUpRight, 
-  Smartphone, 
-  CheckCircle2, 
+  Users,
+  Trash2,
+  GitBranch,
+  ArrowUpRight,
+  Smartphone,
+  CheckCircle2,
   Clock,
   Zap,
   Activity

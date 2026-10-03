@@ -1,13 +1,11 @@
 import React from 'react';
 import { 
-  LayoutDashboard, 
-  Users, 
-  Activity, 
-  Trash2, 
-  Radio, 
-  Database,
+  LayoutDashboard,
+  Users,
+  Activity,
+  Trash2,
+  Radio,
   Smartphone,
-  ShieldCheck,
   RefreshCw,
   LogOut
 } from 'lucide-react';
