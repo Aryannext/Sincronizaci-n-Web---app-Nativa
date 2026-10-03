@@ -33,7 +33,9 @@ const crearPersonaValidator = [
         .bail()
         .isEmail()
         .withMessage("El correo no es válido.")
-        .normalizeEmail()
+        // Solo minúsculas: normalizeEmail() quitaba los puntos y el "+etiqueta" de Gmail
+        // y guardaba un correo distinto al que escribió el usuario
+        .toLowerCase()
 
 ]
 
