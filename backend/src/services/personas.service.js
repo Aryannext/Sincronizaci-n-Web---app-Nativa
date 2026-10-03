@@ -123,9 +123,11 @@ const actualizarPersona = async (id, persona) => {
             nombre,
             apellido,
             telefono,
-            correo
+            correo,
+            version
         } = persona
 
+        // Si llega version, solo se actualiza si nadie la cambió antes (control optimista)
         const resultado = await client.query(`
             UPDATE personas
             SET
@@ -137,6 +139,7 @@ const actualizarPersona = async (id, persona) => {
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $5
             AND deleted_at IS NULL
+            AND ($6::INTEGER IS NULL OR version = $6)
             RETURNING
                 ${PERSONA_COLUMNS}
         `, [
@@ -144,12 +147,30 @@ const actualizarPersona = async (id, persona) => {
             apellido,
             telefono,
             correo,
-            id
+            id,
+            version ?? null
         ])
 
         const personaActualizada = resultado.rows[0]
 
         if (!personaActualizada) {
+
+            const actual = await client.query(`
+                SELECT
+                    ${PERSONA_COLUMNS}
+                FROM personas
+                WHERE id = $1
+                AND deleted_at IS NULL
+            `, [id])
+
+            if (actual.rows[0]) {
+                throw new AppError(
+                    "El registro fue modificado por otro usuario o dispositivo. Vuelve a abrirlo para ver la versión actual.",
+                    409,
+                    actual.rows[0]
+                )
+            }
+
             throw new AppError(
                 "Persona no encontrada",
                 404
@@ -236,6 +257,7 @@ const eliminarPersona = async (id) => {
 }
 
 module.exports = {
+    PERSONA_COLUMNS,
     obtenerPersonas,
     obtenerPersonaPorId,
     crearPersona,

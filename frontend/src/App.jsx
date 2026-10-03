@@ -86,7 +86,12 @@ export default function App() {
       showToast(`¡Registro actualizado a v${updated.version}!`, 'success');
       await loadAllData(true);
     } catch (err) {
-      showToast(err.message, 'error');
+      if (err.status === 409 && err.data) {
+        // Conflicto de versión: el formulario ya muestra el aviso; solo se refresca la lista
+        await loadAllData(true);
+      } else {
+        showToast(err.message, 'error');
+      }
       throw err;
     }
   };

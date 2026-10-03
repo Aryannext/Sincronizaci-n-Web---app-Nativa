@@ -3,11 +3,23 @@ const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 export const API_ORIGIN = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
 const BASE_URL = `${API_ORIGIN}/api`;
 
+// Los ids de persona son enteros: se valida antes de usarlos en la URL
+const personaUrl = (id) => {
+  const personaId = Number(id);
+  if (!Number.isInteger(personaId) || personaId < 1) {
+    throw new Error(`Id de persona inválido: ${id}`);
+  }
+  return `${BASE_URL}/personas/${encodeURIComponent(personaId)}`;
+};
+
 async function handleResponse(response) {
   const data = await response.json();
   if (!response.ok) {
     const errorMsg = data.message || (data.errors && data.errors.map(e => `${e.campo}: ${e.mensaje}`).join(', ')) || 'Error en la petición API';
-    throw new Error(errorMsg);
+    const error = new Error(errorMsg);
+    error.status = response.status;
+    error.data = data.data;
+    throw error;
   }
   return data;
 }
@@ -20,7 +32,7 @@ export const api = {
   },
 
   getPersonaById: async (id) => {
-    const res = await fetch(`${BASE_URL}/personas/${id}`);
+    const res = await fetch(personaUrl(id));
     return handleResponse(res);
   },
 
@@ -34,7 +46,7 @@ export const api = {
   },
 
   updatePersona: async (id, personaData) => {
-    const res = await fetch(`${BASE_URL}/personas/${id}`, {
+    const res = await fetch(personaUrl(id), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(personaData),
@@ -43,7 +55,7 @@ export const api = {
   },
 
   deletePersona: async (id) => {
-    const res = await fetch(`${BASE_URL}/personas/${id}`, {
+    const res = await fetch(personaUrl(id), {
       method: 'DELETE',
     });
     return handleResponse(res);

@@ -64,12 +64,19 @@ export default function PersonasView({ personas = [], onCreate, onUpdate, onDele
     setErrorMsg('');
     try {
       if (editingPersona) {
-        await onUpdate(editingPersona.id, formData);
+        // version permite al servidor detectar si alguien más cambió el registro
+        await onUpdate(editingPersona.id, { ...formData, version: editingPersona.version });
       } else {
         await onCreate(formData);
       }
       setIsModalOpen(false);
     } catch (err) {
+      if (err.status === 409 && err.data) {
+        // Conflicto: se carga la versión del servidor para que el usuario decida
+        handleOpenEdit(err.data);
+        setErrorMsg(`Otro usuario o dispositivo cambió este registro. Se cargó la versión actual (v${err.data.version}); revisa los datos y vuelve a guardar.`);
+        return;
+      }
       setErrorMsg(err.message || 'Ocurrió un error al guardar');
     }
   };
