@@ -26,7 +26,7 @@ const errorUnico = (campo, mensaje) => ({
 })
 
 // Valida una operación del lote y devuelve sus datos ya saneados
-// (mismas reglas que POST/PUT de /api/personas, incluido normalizeEmail)
+// (mismas reglas que POST/PUT de /api/personas, incluido el correo en minúsculas)
 const validarOperacion = async (operacion) => {
 
     if (!esObjeto(operacion)) {
