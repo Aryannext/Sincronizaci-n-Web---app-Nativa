@@ -61,26 +61,31 @@ graph TD
 
 ### 3. Centro de Mando Web (React + Vite + Lucide)
 - **Diseño Glassmorphism Premium:** Interfaz moderna en Modo Oscuro con paneles translúcidos y micro-animaciones.
-- **Monitor de Sincronización en Vivo:** Línea de tiempo interactiva (*Timeline*) que permite inspeccionar el payload JSON exacto de los eventos que entran desde los móviles.
+- **Monitor de Sincronización en Vivo:** Línea de tiempo interactiva (*Timeline*) de los eventos de `sync_log`: operación, fecha, usuario que hizo el cambio y estado actual del registro afectado.
 - **Gestión de Papelera:** Módulo dedicado para auditar y administrar los registros eliminados por borrado lógico.
 
 ---
 
 ## Estructura del Proyecto
 
+La app Android (Kotlin + Room) **no forma parte de este repositorio**: aquí están el backend y el panel web. El contrato que debe seguir la app está en [docs/api.md](docs/api.md) y el flujo completo en [docs/documento.md](docs/documento.md).
+
 ```text
-├── android/          # Código fuente e interfaz nativa Android (Kotlin + Room)
 ├── backend/          # API REST (Node.js, Express, PostgreSQL, pg)
-│   ├── src/
-│   │   ├── controllers/  # Controladores (Personas y Sincronización)
-│   │   ├── database/     # Scripts SQL y esquemas de tablas
-│   │   ├── routes/       # Definición de endpoints (/api/personas, /api/sync)
-│   │   └── services/     # Lógica de negocio y registro de Sync Log
-│   └── docs/             # Documentación técnica de la API y flujos
+│   ├── scripts/          # crear-usuario.js (alta, cambio de contraseña y baja de usuarios)
+│   └── src/
+│       ├── config/       # Conexión a PostgreSQL y configuración de seguridad
+│       ├── controllers/  # Controladores (Auth, Personas y Sincronización)
+│       ├── database/     # Scripts SQL: esquema, datos de ejemplo y migraciones
+│       ├── middleware/   # Autenticación, roles, límites de peticiones y errores
+│       ├── routes/       # Endpoints (/api/auth, /api/personas, /api/sync)
+│       ├── services/     # Lógica de negocio, push por lotes y registro de Sync Log
+│       └── validators/   # Reglas de validación (express-validator)
+├── docs/             # Documentación técnica: API (api.md) y arquitectura (documento.md)
 └── frontend/         # Web App Administrativa (React 19 + Vite + Lucide Icons)
     └── src/
-        ├── components/   # Vistas: Dashboard, Personas, Monitor Sync, Papelera
-        └── services/     # Cliente de conexión API REST
+        ├── components/   # Vistas: Login, Dashboard, Personas, Monitor Sync, Papelera
+        └── services/     # Cliente de la API REST con sesión
 ```
 
 ---

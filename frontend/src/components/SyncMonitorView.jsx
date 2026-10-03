@@ -1,15 +1,11 @@
 import React, { useState } from 'react';
 import { 
-  Activity, 
-  RefreshCw, 
-  Smartphone, 
-  Database, 
-  ArrowDownLeft, 
-  ArrowUpRight, 
-  Clock, 
+  Activity,
+  RefreshCw,
+  Smartphone,
+  Clock,
   Terminal,
   Eye,
-  CheckCircle2,
   GitBranch
 } from 'lucide-react';
 
@@ -92,11 +88,11 @@ export default function SyncMonitorView({ syncLogs = [], onRefresh, isLoading })
                 No hay operaciones registradas para este filtro.
               </div>
             ) : (
-              [...filteredLogs].reverse().map((log, i) => {
+              [...filteredLogs].reverse().map((log) => {
                 const isSelected = selectedLog?.change_id === log.change_id;
                 return (
                   <div
-                    key={i}
+                    key={log.change_id}
                     onClick={() => setSelectedLog(log)}
                     style={{
                       display: 'flex',
@@ -154,6 +150,11 @@ export default function SyncMonitorView({ syncLogs = [], onRefresh, isLoading })
                         <Clock size={12} />
                         {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                       </div>
+                      {log.usuario && (
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                          por {log.usuario}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -162,17 +163,17 @@ export default function SyncMonitorView({ syncLogs = [], onRefresh, isLoading })
           </div>
         </div>
 
-        {/* Payload Inspector / Live Architecture Card */}
+        {/* Inspector de eventos / Live Architecture Card */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* JSON Inspector */}
           <div className="glass-card" style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--secondary)' }}>
-              <Eye size={18} /> Inspector de Payload JSON
+              <Eye size={18} /> Inspector de Eventos
             </h3>
             {selectedLog ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Detalles capturados en la tabla <code>sync_log</code> para el change_id #{selectedLog.change_id}:
+                  Evento #{selectedLog.change_id} de <code>sync_log</code>. El campo <code>data</code> muestra el estado <strong>actual</strong> del registro, no una copia del momento del cambio:
                 </div>
                 <pre style={{
                   background: 'rgba(0,0,0,0.6)',

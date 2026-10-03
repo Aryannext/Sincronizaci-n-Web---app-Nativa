@@ -6,7 +6,7 @@ import SyncMonitorView from './components/SyncMonitorView';
 import TrashView from './components/TrashView';
 import LoginView from './components/LoginView';
 import { api, API_ORIGIN, sesion, onSesionExpirada } from './services/api';
-import { Radio, AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -144,7 +144,7 @@ export default function App() {
 
   const handleDelete = async (id) => {
     try {
-      const deleted = await api.deletePersona(id);
+      await api.deletePersona(id);
       showToast(`Persona eliminada. Evento SOFT DELETE registrado en sync_log.`, 'success');
       await loadAllData(true);
     } catch (err) {
