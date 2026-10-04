@@ -1,0 +1,2 @@
+# Los scripts de despliegue corren en Linux: con CRLF, sh falla
+*.sh text eol=lf

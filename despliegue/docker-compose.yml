@@ -1,0 +1,81 @@
+# Sincronización en el VPS compartido. Se usa desde esta carpeta; guía en el README ("Despliegue en el VPS").
+# Los secretos están en despliegue/.env, que no se versiona (lo crea instalar.sh).
+name: sincronizacion
+
+services:
+  # Panel web compilado + proxy hacia la API. Es lo único que se publica, y solo para el Nginx del servidor:
+  # https://proyectosena.online/sincronizacion/ (ver nginx/sincronizacion.conf)
+  web:
+    build:
+      context: ..
+      dockerfile: despliegue/web.Dockerfile
+      args:
+        VITE_BASE: /sincronizacion/
+        VITE_API_URL: ${PANEL_API_URL:-https://proyectosena.online/sincronizacion}
+    image: sincronizacion-web:actual
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    # El 127.0.0.1 no es decorativo: sin él, Docker abre el puerto a internet saltándose el cortafuegos
+    ports:
+      - "127.0.0.1:${SINCRONIZACION_PUERTO:-3020}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  api:
+    build:
+      context: ..
+      dockerfile: despliegue/api.Dockerfile
+    image: sincronizacion-api:actual
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      DB_HOST: db
+      DB_PORT: "5432"
+    depends_on:
+      db:
+        condition: service_healthy
+    # Sin "ports": solo el contenedor web llega a la API
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # PostgreSQL propio, para no tocar el del servidor ni el de los otros proyectos.
+  # El esquema y las migraciones los aplica migrar.sh, no el arranque del contenedor.
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - datos:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  # Los datos sobreviven a "docker compose down"; solo "down -v" los borra
+  datos:
