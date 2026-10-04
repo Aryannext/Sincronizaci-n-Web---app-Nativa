@@ -24,6 +24,7 @@ fi
 for archivo in ../backend/src/database/*.sql; do
     case "$(basename "$archivo")" in
         01_*|02_*|03_*) continue ;;
+        *) ;;
     esac
     echo "Migración: $(basename "$archivo")"
     psql_db < "$archivo"

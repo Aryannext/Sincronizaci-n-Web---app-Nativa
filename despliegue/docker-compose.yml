@@ -19,9 +19,9 @@ services:
         condition: service_healthy
     # El 127.0.0.1 no es decorativo: sin él, Docker abre el puerto a internet saltándose el cortafuegos
     ports:
-      - "127.0.0.1:${SINCRONIZACION_PUERTO:-3020}:80"
+      - "127.0.0.1:${SINCRONIZACION_PUERTO:-3020}:8080"
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
       interval: 30s
       timeout: 5s
       retries: 3
