@@ -128,7 +128,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 npm run dev
 ```
 
-Crea la base de datos ejecutando **en orden** los scripts de `backend/src/database/`: `01_create_database.sql`, `02_create_tables.sql`, `03_seed.sql`, `04_add_version_column.sql`, `05_create_usuarios.sql`, `06_correo_unico_activos.sql` y `07_registrar_personas_sin_historial.sql`. Los scripts 04 a 07 también sirven para actualizar una base ya existente; el 07 registra en el historial de sincronización las personas que no aparecían en él (por ejemplo, los datos de ejemplo de bases antiguas), para que los dispositivos las descarguen.
+Crea la base de datos ejecutando **en orden** los scripts de `backend/src/database/`: `01_create_database.sql`, `02_create_tables.sql`, `03_seed.sql`, `04_add_version_column.sql`, `05_create_usuarios.sql`, `06_correo_unico_activos.sql` y `07_registrar_personas_sin_historial.sql`. Los scripts 04 a 07 también sirven para actualizar una base ya existente; el 07 registra en el historial de sincronización las personas que no aparecían en él (por ejemplo, los datos de ejemplo de bases antiguas), para que los dispositivos las descarguen. En producción no hace falta ejecutarlos: la API los aplica al arrancar (ver "Despliegue en Internet").
 
 #### Crear usuarios
 No existe registro público: los usuarios se crean desde la consola del servidor. La contraseña se pide por teclado (mínimo 10 caracteres).
@@ -224,39 +224,48 @@ Producción vive dentro del sitio del portafolio, junto a los demás proyectos:
 | API (la usa la app) | `https://proyectosena.online/sincronizacion/api/` |
 | APK firmada | `https://proyectosena.online/sincronizacion/descargas/syncpulse.apk` |
 
-Todo corre en Docker Compose (`despliegue/`), sin tocar el Node ni el PostgreSQL del servidor:
+Todo corre en Docker Compose (`despliegue/docker-compose.yml`), sin tocar el Node ni el PostgreSQL del servidor, y lo despliega **Dokploy** en cada push a `main`:
 
 ```text
 Internet ─HTTPS─> Nginx del servidor ─/sincronizacion/─> 127.0.0.1:3020 contenedor web (Nginx: panel compilado)
                                                                          └─ /api/ ─> contenedor api (Node) ─> contenedor db (PostgreSQL 16)
 ```
 
-Solo el contenedor `web` publica un puerto, y solo en `127.0.0.1`; la API y la base no son accesibles desde fuera de Docker.
+Solo el contenedor `web` publica un puerto, y solo en `127.0.0.1`; la API y la base no son accesibles desde fuera de Docker. Al arrancar, la API (`MIGRAR_AL_INICIAR=true`) crea el esquema con los datos de ejemplo si la base está vacía y aplica las migraciones de `backend/src/database` a partir de la 04 (`backend/src/database/migrar.js`); si una falla, se deshace y la API no arranca.
 
-**Primera instalación** (en el servidor, como `cristian`):
+**Dokploy** (una sola vez):
 
-1. Clonar y levantar. `instalar.sh` crea `despliegue/.env` con una contraseña de base de datos y un `JWT_SECRET` nuevos, construye las imágenes, crea el esquema con los datos de ejemplo y aplica las migraciones:
-   ```bash
-   git clone https://github.com/Aryannext/Sincronizaci-n-Web---app-Nativa.git ~/proyectos/proyectosena.online/sincronizacion
-   cd ~/proyectos/proyectosena.online/sincronizacion && sh despliegue/instalar.sh
-   ```
-   Antes, comprueba con `ss -ltn` que el puerto `3020` esté libre; si no, cambia `SINCRONIZACION_PUERTO` en `despliegue/.env` y el `proxy_pass` de `despliegue/nginx/sincronizacion.conf`.
-2. Publicarlo en Nginx: añade al bloque `server` 443 de `proyectosena.online`
-   ```nginx
-   include /home/cristian/proyectos/proyectosena.online/sincronizacion/despliegue/nginx/sincronizacion.conf;
-   ```
-   y recarga con `sudo nginx -t && sudo systemctl reload nginx`.
-3. Crear los usuarios (la contraseña se pide por teclado):
-   ```bash
-   cd despliegue && docker compose exec api npm run crear-usuario -- --correo admin@tuempresa.com --nombre "Ana Admin" --rol admin
-   ```
-4. Subir la APK firmada (ver "APK de producción") desde tu PC:
-   ```bash
-   scp android/app/build/outputs/apk/release/app-release.apk cristian@proyectosena.online:descargas-sincronizacion/syncpulse.apk
-   ```
-   La carpeta `~/descargas-sincronizacion/` se crea una vez en el servidor con `mkdir`.
+1. *Create Service → Compose*, origen GitHub: repositorio `Aryannext/Sincronizaci-n-Web---app-Nativa`, rama `main`, *Compose Path* `./despliegue/docker-compose.yml`.
+2. En *Environment*, las variables de `despliegue/.env.example`: como mínimo `DB_PASSWORD` y `JWT_SECRET` (`openssl rand -hex 24` y `openssl rand -hex 48`). La contraseña de la base solo se fija al crearla: si el volumen `sincronizacion_datos` ya existe, usa la que tenía.
+3. Activa *Autodeploy* y pulsa *Deploy*. No hace falta configurar dominio en Dokploy: lo publica el Nginx del servidor.
 
-**Actualizar** después de fusionar en `main`: `sh despliegue/desplegar.sh` hace `git pull`, reconstruye, aplica las migraciones nuevas (las de `backend/src/database` a partir de la 04, que se pueden repetir) y espera a que los contenedores respondan.
+**Nginx del servidor** (una sola vez). El fragmento `despliegue/nginx/sincronizacion.conf` se lee de un clon del repositorio en el servidor:
+
+```bash
+git clone https://github.com/Aryannext/Sincronizaci-n-Web---app-Nativa.git ~/proyectos/proyectosena.online/sincronizacion
+```
+
+y se incluye en el bloque `server` 443 de `proyectosena.online`:
+
+```nginx
+include /home/cristian/proyectos/proyectosena.online/sincronizacion/despliegue/nginx/sincronizacion.conf;
+```
+
+Recarga con `sudo nginx -t && sudo systemctl reload nginx`. Si el puerto `3020` estuviera ocupado (`ss -ltn`), cambia `SINCRONIZACION_PUERTO` en Dokploy y el `proxy_pass` del fragmento. Si algún día cambia el fragmento, actualiza el clon con `git pull` y recarga Nginx.
+
+**Usuarios** (la contraseña se pide por teclado):
+
+```bash
+docker exec -it "$(docker ps -qf ancestor=sincronizacion-api:actual)" npm run crear-usuario -- --correo admin@tuempresa.com --nombre "Ana Admin" --rol admin
+```
+
+**APK firmada** (ver "APK de producción"): se sube desde tu PC a `~/descargas-sincronizacion/` (créala una vez con `mkdir`):
+
+```bash
+scp android/app/build/outputs/apk/release/app-release.apk cristian@proyectosena.online:descargas-sincronizacion/syncpulse.apk
+```
+
+**Actualizar:** fusiona en `main` y Dokploy reconstruye y reinicia solo; las migraciones nuevas se aplican al arrancar la API. Para levantarlo a mano sin Dokploy: copia `despliegue/.env.example` como `despliegue/.env`, complétalo y ejecuta `docker compose up -d --build --wait` desde `despliegue/`.
 
 ### En otro servidor
 
