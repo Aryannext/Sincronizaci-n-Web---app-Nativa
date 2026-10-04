@@ -121,27 +121,7 @@ class Sincronizador(
         )
 
         when (accion) {
-            is AccionLocal.Confirmar -> {
-                val registro = accion.registro
-                when {
-                    registro.eliminado -> {
-                        personas.borrar(enviada.uuid)
-                        operaciones.borrarPorUuid(enviada.uuid)
-                    }
-                    modificada && actual != null -> {
-                        // Se conserva la edición nueva y se sube después sobre la versión confirmada
-                        personas.buscar(enviada.uuid)?.let {
-                            personas.guardar(it.copy(idServidor = registro.id, version = registro.version, error = null))
-                        }
-                        val siguienteTipo = if (actual.tipo == TipoOperacion.CREATE.name) TipoOperacion.UPDATE.name else actual.tipo
-                        operaciones.guardar(actual.copy(tipo = siguienteTipo, baseVersion = registro.version))
-                    }
-                    else -> {
-                        personas.guardar(registro.aEntidad())
-                        operaciones.borrar(enviada.id)
-                    }
-                }
-            }
+            is AccionLocal.Confirmar -> confirmar(enviada, accion.registro, edicionNueva = actual.takeIf { modificada })
             is AccionLocal.AceptarServidor -> {
                 // Política acordada: ante un conflicto gana la versión del servidor
                 conflictos++
@@ -162,6 +142,33 @@ class Sincronizador(
             AccionLocal.BorrarLocal -> {
                 personas.borrar(enviada.uuid)
                 operaciones.borrarPorUuid(enviada.uuid)
+            }
+        }
+    }
+
+    /**
+     * El servidor aplicó la operación. edicionNueva es la operación en cola si el
+     * usuario volvió a cambiar el registro mientras se enviaba; si no, null.
+     */
+    private suspend fun confirmar(enviada: OperacionEntity, registro: RegistroServidor, edicionNueva: OperacionEntity?) {
+        val operaciones = db.operaciones()
+        val personas = db.personas()
+        when {
+            registro.eliminado -> {
+                personas.borrar(enviada.uuid)
+                operaciones.borrarPorUuid(enviada.uuid)
+            }
+            edicionNueva != null -> {
+                // Se conserva la edición nueva y se sube después sobre la versión confirmada
+                personas.buscar(enviada.uuid)?.let {
+                    personas.guardar(it.copy(idServidor = registro.id, version = registro.version, error = null))
+                }
+                val siguienteTipo = if (edicionNueva.tipo == TipoOperacion.CREATE.name) TipoOperacion.UPDATE.name else edicionNueva.tipo
+                operaciones.guardar(edicionNueva.copy(tipo = siguienteTipo, baseVersion = registro.version))
+            }
+            else -> {
+                personas.guardar(registro.aEntidad())
+                operaciones.borrar(enviada.id)
             }
         }
     }
