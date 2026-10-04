@@ -1,6 +1,6 @@
 # Guía para asistentes de código
 
-Sistema de sincronización offline-first: API REST en Node.js + Express + PostgreSQL (`backend/`) y panel web en React + Vite (`frontend/`). La app Android **no está en este repositorio**: su contrato con la API está en `docs/api.md`.
+Sistema de sincronización offline-first: API REST en Node.js + Express + PostgreSQL (`backend/`), panel web en React + Vite (`frontend/`) y app Android en Kotlin + Jetpack Compose + Room + WorkManager (`android/`). El contrato entre la app y la API está en `docs/api.md`.
 
 ## Comandos
 
@@ -8,6 +8,7 @@ Sistema de sincronización offline-first: API REST en Node.js + Express + Postgr
 cd backend && npm test                                          # tests de integración (PostgreSQL embebido, no requiere instalación)
 cd backend && npm run dev                                       # API en el puerto 3000 (necesita .env con PostgreSQL y JWT_SECRET)
 cd frontend && npm run lint -- --deny-warnings && npm run build # lo mismo que ejecuta el CI
+cd android && ./gradlew testDebugUnitTest assembleDebug          # tests y APK de la app (JDK de Android Studio)
 ```
 
 ## Regla principal: la documentación cambia con el código
@@ -22,7 +23,7 @@ Todo cambio de comportamiento actualiza su documentación **en el mismo PR**:
 | Instalación, comandos, variables de entorno o despliegue | `README.md` y `backend/.env.example` / `frontend/.env.example` |
 | Esquema de la base de datos | Nueva migración (ver abajo) y orden de scripts en el `README.md` |
 
-Si un cambio afecta al contrato con la app Android, dilo explícitamente en el PR.
+Si un cambio afecta al contrato con la app Android (rutas, campos o estados del push y del pull), **adapta la app en el mismo PR** (`android/.../data/remote/Dtos.kt` y `Sincronizador.kt`) y dilo explícitamente.
 
 ## Base de datos
 
@@ -46,6 +47,6 @@ Si un cambio afecta al contrato con la app Android, dilo explícitamente en el P
 ## Estilo
 
 - Código, interfaz, documentación y mensajes de commit en **español**.
-- Backend: CommonJS, 4 espacios, sin punto y coma. Frontend: 2 espacios, con punto y coma.
+- Backend: CommonJS, 4 espacios, sin punto y coma. Frontend: 2 espacios, con punto y coma. Android: Kotlin, 4 espacios; la lógica de sincronización pura va en `domain/` con tests JUnit. Las dependencias de Android están fijadas en `*.lockfile`: si cambias `gradle/libs.versions.toml`, regenéralos con `./gradlew :app:dependencies :app:buildEnvironment --write-locks`.
 - Finales de línea LF.
 - Commits con prefijo convencional (`feat:`, `fix:`, `docs:`, `test:`, `ci:`, `chore:`, `refactor:`).

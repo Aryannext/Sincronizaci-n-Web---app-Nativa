@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tema de la ventana; los colores de la interfaz los define Compose (ui/tema/Tema.kt) -->
+    <style name="Theme.SyncPulse" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/fondo</item>
+        <item name="android:statusBarColor">@color/fondo</item>
+    </style>
+
+    <color name="fondo">#0B0F19</color>
+    <color name="icono_fondo">#6D28D9</color>
+</resources>

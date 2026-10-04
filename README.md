@@ -75,10 +75,16 @@ graph TD
 
 ## Estructura del Proyecto
 
-La app Android (Kotlin + Room) **no forma parte de este repositorio**: aquí están el backend y el panel web. El contrato que debe seguir la app está en [docs/api.md](docs/api.md) y el flujo completo en [docs/documento.md](docs/documento.md).
+El repositorio incluye las tres piezas: backend, panel web y app Android. El contrato entre la app y la API está en [docs/api.md](docs/api.md) y el flujo completo en [docs/documento.md](docs/documento.md).
 
 ```text
-├── .github/workflows/ # CI: tests del backend y lint + build del frontend en cada PR
+├── .github/workflows/ # CI en cada PR: tests del backend, lint + build del frontend y tests + APK de Android
+├── android/          # App móvil (Kotlin, Jetpack Compose, Room, WorkManager, Retrofit)
+│   └── app/src/main/java/com/sincronizacion/app/
+│       ├── data/         # Room (local), Retrofit (remote), sesión cifrada, repositorios y Sincronizador
+│       ├── domain/       # Lógica pura de la cola y de los resultados del push (con tests)
+│       ├── sync/         # SyncWorker y programación de WorkManager
+│       └── ui/           # Pantallas: login, lista de personas y formulario
 ├── backend/          # API REST (Node.js, Express, PostgreSQL, pg)
 │   ├── scripts/          # crear-usuario.js (alta, cambio de contraseña y baja de usuarios)
 │   ├── test/             # Tests de integración (node:test + PostgreSQL embebido)
@@ -159,10 +165,20 @@ Abre tu navegador en: `http://localhost:5173/`
 
 Inicia sesión con un usuario `admin`.
 
-### 4. Conectar el Teléfono o Emulador Android
-1. Asegúrate de que tu PC y tu teléfono móvil estén en la **misma red Wi-Fi**.
-2. Configura la IP de tu servidor (ej. `http://192.168.X.X:3000`) en el archivo de configuración del cliente móvil (`network_security_config.xml` y `PersonaApi.kt`).
-3. La app debe iniciar sesión con un usuario `operador` (`POST /api/auth/login`) y enviar el token en cada petición. Ver [docs/api.md](docs/api.md#autenticación).
+### 4. App Android en tu teléfono
+Requiere [Android Studio](https://developer.android.com/studio) (trae su propio Java y descarga el SDK la primera vez).
+
+1. **Misma red:** el PC y el teléfono deben estar en la **misma red Wi-Fi**. El backend debe estar en marcha con `HOST=0.0.0.0`, y el Firewall de Windows debe permitir el puerto `3000` en redes privadas.
+2. **URL de la API:** crea `android/local.properties` con la IP de tu PC (puedes verla con `ipconfig`):
+   ```properties
+   api.url=http://192.168.X.X:3000/api/
+   ```
+   Si no lo creas, se usa la de `android/gradle.properties`.
+3. **Teléfono:** activa las *Opciones de desarrollador* (pulsa 7 veces *Número de compilación* en *Ajustes → Acerca del teléfono*) y dentro activa *Depuración por USB* (o *Depuración inalámbrica*).
+4. **Usuario:** crea un usuario `operador` con `npm run crear-usuario`. El panel web es solo para administradores.
+5. Abre la carpeta `android/` en Android Studio, elige tu teléfono y pulsa **Run**.
+
+La versión de desarrollo permite HTTP hacia el backend local; la versión `release` exige HTTPS.
 
 ---
 
@@ -195,7 +211,7 @@ La API maneja datos personales, así que en Internet **solo debe servirse por HT
    }
    ```
 3. Compila el panel con `VITE_API_URL=https://api.tuempresa.com npm run build` y publica la carpeta `frontend/dist` en `panel.tuempresa.com`.
-4. En la app Android usa la URL `https://` y elimina cualquier excepción de tráfico en claro (`cleartextTrafficPermitted`) de `network_security_config.xml`.
+4. Compila la app en modo `release` con `api.url=https://api.tuempresa.com/api/`; esa versión no permite tráfico en claro.
 
 ---
 
