@@ -85,3 +85,25 @@ test("06: el correo de una persona borrada se puede reutilizar, pero no entre ac
     await insertar("ana@example.com")
     await assert.rejects(insertar("ana@example.com"), (error) => error.constraint === "personas_correo_activo_idx")
 })
+
+test("07: registra en sync_log las personas activas que no tenían historial (y se puede repetir)", async () => {
+    // Filas sin evento, como las del seed antiguo o las insertadas a mano
+    await insertar("sin-historial@example.com")
+    await insertar("borrada-sin-historial@example.com", true)
+    const eventosPorCorreo = async (correo) => (await cliente.query(
+        "SELECT sl.operation FROM sync_log sl JOIN personas p ON p.uuid = sl.record_uuid WHERE p.correo = $1",
+        [correo]
+    )).rows.map(r => r.operation)
+    assert.deepEqual(await eventosPorCorreo("sin-historial@example.com"), [])
+
+    await ejecutarDosVeces("07_registrar_personas_sin_historial.sql")
+
+    assert.deepEqual(await eventosPorCorreo("sin-historial@example.com"), ["CREATE"])
+    assert.deepEqual(await eventosPorCorreo("borrada-sin-historial@example.com"), [])
+    // Las del seed ya tenían su CREATE: no se duplica
+    assert.deepEqual(await eventosPorCorreo("juan@gmail.com"), ["CREATE"])
+    const sinHistorial = (await cliente.query(
+        "SELECT count(*)::int AS n FROM personas p WHERE p.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM sync_log sl WHERE sl.record_uuid = p.uuid)"
+    )).rows[0].n
+    assert.equal(sinHistorial, 0)
+})

@@ -20,6 +20,22 @@ const U3 = "33333333-3333-4333-8333-333333333333"
 const datos = { nombre: "Laura", apellido: "Gomez", telefono: "3001234500", correo: "laura@example.com" }
 const cambios = { ...datos, telefono: "3009990000" }
 
+describe("Pull: instalación nueva", () => {
+
+    test("los datos de ejemplo llegan al móvil en el primer pull", async () => {
+        const personas = (await entorno.llamar("/personas", { token: entorno.tokens.admin })).data
+        const cambios = (await entorno.llamar("/sync?last_change_id=0", { token: entorno.tokens.operador })).data.changes
+        assert.ok(personas.length > 0)
+        for (const persona of personas) {
+            const cambio = cambios.find(c => c.record_uuid === persona.uuid)
+            assert.ok(cambio, `falta en el pull: ${persona.correo}`)
+            assert.equal(cambio.operation, "CREATE")
+            assert.equal(cambio.data.version, persona.version)
+        }
+    })
+
+})
+
 // Los tests de este bloque van en orden sobre el mismo registro (U1)
 describe("Push: duplicados, conflictos y reintentos", () => {
 
