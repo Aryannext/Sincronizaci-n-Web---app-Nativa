@@ -178,6 +178,7 @@ El ciclo de vida transaccional sigue estos 6 pasos secuenciales:
 ## 6. Manejo de Errores y Resiliencia
 - **Servidor Caído o Inaccesible:** Si el dispositivo móvil tiene internet activo pero tu PC o servidor Node.js está apagado, la llamada de Retrofit lanza una excepción. El `SyncWorker` la captura y retorna `Result.retry()`. WorkManager reprogramará automáticamente el intento con *backoff* exponencial (30 s, luego 1 min, 2 min, 4 min…), evitando saturar la red o gastar batería.
 - **Sesión Caducada o Revocada (`401`):** El SyncWorker **no borra** la cola `operaciones`: borra el token, la app vuelve al login con el aviso "Tu sesión expiró" y, al entrar de nuevo, sube lo pendiente. Los reintentos son seguros: gracias al `uuid` y a `base_version` nada se aplica dos veces.
+- **Datos que no pasan por la API:** El pull (`GET /api/sync`) solo entrega lo que está en `sync_log`. Por eso los datos de ejemplo (`03_seed.sql`) registran su `CREATE`, y si se cargan personas directamente en PostgreSQL hay que ejecutar después `07_registrar_personas_sin_historial.sql`, que añade el evento que falte; si no, los dispositivos nunca las descargan.
 - **Sobrevivencia al Cierre de la App:** Si el usuario cierra la aplicación deslizándola de las tareas recientes o apaga la pantalla justo mientras se está sincronizando, no hay pérdida de datos. WorkManager opera como un servicio del sistema del kernel de Android y completará la sincronización en segundo plano de manera totalmente independiente a la interfaz gráfica.
 
 ---

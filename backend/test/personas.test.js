@@ -35,6 +35,7 @@ describe("CRUD", () => {
         await comoAdmin(`/personas/${creada.id}`, { method: "PUT", body: persona("log@example.com", "Cambio") })
         await comoAdmin(`/personas/${creada.id}`, { method: "DELETE" })
         const eventos = (await comoAdmin("/sync?last_change_id=0")).data.changes
+            .filter(e => e.record_uuid === creada.uuid)
         assert.deepEqual(eventos.map(e => e.operation), ["CREATE", "UPDATE", "DELETE"])
     })
 

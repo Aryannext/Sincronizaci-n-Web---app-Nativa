@@ -14,7 +14,8 @@ const MIGRACIONES = [
     "03_seed.sql",
     "04_add_version_column.sql",
     "05_create_usuarios.sql",
-    "06_correo_unico_activos.sql"
+    "06_correo_unico_activos.sql",
+    "07_registrar_personas_sin_historial.sql"
 ]
 
 const aleatorio = (bytes = 18) => crypto.randomBytes(bytes).toString("base64url")
