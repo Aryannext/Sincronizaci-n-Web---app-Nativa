@@ -1,5 +1,5 @@
-# Sincronización en el VPS compartido. Se usa desde esta carpeta; guía en el README ("Despliegue en el VPS").
-# Los secretos están en despliegue/.env, que no se versiona (lo crea instalar.sh).
+# Sincronización en el VPS compartido. Lo despliega Dokploy en cada push a main; guía en el README
+# ("Despliegue en Internet"). Los secretos van en el entorno de Dokploy, nunca en el repositorio.
 name: sincronizacion
 
 services:
@@ -35,12 +35,25 @@ services:
       dockerfile: despliegue/api.Dockerfile
     image: sincronizacion-api:actual
     restart: unless-stopped
-    env_file: .env
+    # Las variables salen del entorno de Dokploy (o de despliegue/.env si se levanta a mano)
     environment:
       HOST: 0.0.0.0
       PORT: "3000"
       DB_HOST: db
       DB_PORT: "5432"
+      DB_USER: ${DB_USER:-sincronizacion}
+      DB_NAME: ${DB_NAME:-sincronizacion}
+      DB_PASSWORD: ${DB_PASSWORD:?Falta DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET}
+      JWT_EXPIRES_ADMIN: ${JWT_EXPIRES_ADMIN:-8h}
+      JWT_EXPIRES_OPERADOR: ${JWT_EXPIRES_OPERADOR:-30d}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://proyectosena.online}
+      # Un proxy de confianza: el Nginx del servidor, que fija la IP real del cliente
+      TRUST_PROXY: "1"
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-1000}
+      RATE_LIMIT_LOGIN_MAX: ${RATE_LIMIT_LOGIN_MAX:-10}
+      # Crea el esquema si la base está vacía y aplica las migraciones antes de escuchar
+      MIGRAR_AL_INICIAR: "true"
     depends_on:
       db:
         condition: service_healthy
@@ -56,14 +69,14 @@ services:
       options: { max-size: "10m", max-file: "3" }
 
   # PostgreSQL propio, para no tocar el del servidor ni el de los otros proyectos.
-  # El esquema y las migraciones los aplica migrar.sh, no el arranque del contenedor.
+  # El esquema y las migraciones los aplica la API al arrancar (MIGRAR_AL_INICIAR).
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-sincronizacion}
+      POSTGRES_USER: ${DB_USER:-sincronizacion}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Falta DB_PASSWORD}
     volumes:
       - datos:/var/lib/postgresql/data
     healthcheck:
@@ -77,5 +90,7 @@ services:
       options: { max-size: "10m", max-file: "3" }
 
 volumes:
-  # Los datos sobreviven a "docker compose down"; solo "down -v" los borra
+  # Los datos sobreviven a "docker compose down"; solo "down -v" los borra.
+  # Nombre fijo: Dokploy usa su propio nombre de proyecto y, sin esto, crearía una base vacía
   datos:
+    name: sincronizacion_datos

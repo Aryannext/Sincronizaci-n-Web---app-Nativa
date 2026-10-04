@@ -65,7 +65,7 @@ Para que un dispositivo Android (móvil físico o emulador) alcance el servidor 
 
 ### Producción (Internet)
 - La API se sirve **solo por HTTPS** detrás de un proxy (Caddy, Nginx…), con `TRUST_PROXY=1` y sin exponer su puerto a Internet. Ver "Despliegue en Internet" en el README.
-- En el VPS de producción todo vive bajo `https://proyectosena.online/sincronizacion/`: el Nginx del servidor reenvía esa ruta a un contenedor que sirve el panel y pasa `/api/` al contenedor de la API, que usa su propio PostgreSQL (carpeta `despliegue/`).
+- En el VPS de producción todo vive bajo `https://proyectosena.online/sincronizacion/`: el Nginx del servidor reenvía esa ruta a un contenedor que sirve el panel y pasa `/api/` al contenedor de la API, que usa su propio PostgreSQL (carpeta `despliegue/`). Dokploy lo despliega en cada push a `main`, y la API aplica las migraciones al arrancar (`MIGRAR_AL_INICIAR=true`).
 - La app se compila en modo `release` con `api.url.release=https://proyectosena.online/sincronizacion/api/` y se firma con la clave de `android/keystore.properties` (ver "APK de producción" en el README); esa versión no permite tráfico en claro.
 - CORS solo admite los orígenes de `CORS_ORIGINS` (el dominio del panel web). La app nativa no envía `Origin`, así que no le afecta.
 
