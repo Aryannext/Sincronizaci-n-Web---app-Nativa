@@ -54,3 +54,27 @@ jobs:
       # oxlint instalado por npm ci (versión fijada en package-lock.json)
       - run: npm run lint -- --deny-warnings
       - run: npm run build
+
+  android:
+    name: Android (tests y APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+      # Caché de Gradle y validación del gradle-wrapper.jar
+      - uses: gradle/actions/setup-gradle@v6
+      # El runner trae el Android SDK; Gradle descarga la plataforma que falte
+      - run: ./gradlew testDebugUnitTest assembleDebug
+      # APK de desarrollo para probar el PR (apunta a la api.url de gradle.properties)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: app-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7

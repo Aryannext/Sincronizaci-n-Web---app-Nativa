@@ -78,7 +78,7 @@ graph TD
 El repositorio incluye las tres piezas: backend, panel web y app Android. El contrato entre la app y la API está en [docs/api.md](docs/api.md) y el flujo completo en [docs/documento.md](docs/documento.md).
 
 ```text
-├── .github/workflows/ # CI: tests del backend y lint + build del frontend en cada PR
+├── .github/workflows/ # CI en cada PR: tests del backend, lint + build del frontend y tests + APK de Android
 ├── android/          # App móvil (Kotlin, Jetpack Compose, Room, WorkManager, Retrofit)
 │   └── app/src/main/java/com/sincronizacion/app/
 │       ├── data/         # Room (local), Retrofit (remote), sesión cifrada, repositorios y Sincronizador

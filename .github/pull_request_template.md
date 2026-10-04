@@ -8,6 +8,7 @@
 
 - [ ] `cd backend && npm test` pasa
 - [ ] `cd frontend && npm run lint -- --deny-warnings && npm run build` pasa
+- [ ] `cd android && ./gradlew testDebugUnitTest assembleDebug` pasa (si cambia la app)
 - [ ] Añadí o actualicé tests para el cambio (o explico abajo por qué no hacen falta)
 
 ## Documentación
