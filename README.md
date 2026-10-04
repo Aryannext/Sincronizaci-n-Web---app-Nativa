@@ -180,6 +180,23 @@ Requiere [Android Studio](https://developer.android.com/studio) (trae su propio 
 
 La versión de desarrollo permite HTTP hacia el backend local; la versión `release` exige HTTPS.
 
+### 5. APK de producción (release)
+La APK `release` se firma con una clave propia. **Guarda esa clave y sus contraseñas fuera del repositorio y con copia de seguridad:** si se pierde, no se podrán publicar actualizaciones de la app con la misma identidad.
+
+1. **Crear la clave (una sola vez).** Desde la carpeta `android/`, con el `keytool` del Java de Android Studio; te pedirá las contraseñas:
+   ```bash
+   mkdir firma
+   "C:/Program Files/Android/Android Studio/jbr/bin/keytool" -genkeypair -v -keystore firma/syncpulse-release.jks -alias syncpulse -keyalg RSA -keysize 4096 -validity 10000
+   ```
+2. **Configurar la firma.** Copia `android/keystore.properties.example` como `android/keystore.properties` y escribe las contraseñas. Tanto ese archivo como la carpeta `firma/` están en `.gitignore`.
+3. **URL de producción.** Añade a `android/local.properties` la URL HTTPS de la API:
+   ```properties
+   api.url.release=https://api.tuempresa.com/api/
+   ```
+4. **Compilar:** `./gradlew assembleRelease` genera `android/app/build/outputs/apk/release/app-release.apk` (o `./gradlew bundleRelease` para un `.aab` de Google Play).
+
+Si falta la firma o la URL no empieza por `https://`, la compilación se detiene y explica qué falta. Antes de cada versión nueva, sube `versionCode` (y `versionName`) en `android/app/build.gradle.kts`.
+
 ---
 
 ## Pruebas
@@ -191,7 +208,7 @@ cd backend
 npm test
 ```
 
-En cada pull request, GitHub Actions ejecuta estos tests y además el linter (sin avisos permitidos) y la compilación del frontend. Si algo falla, el PR no se puede fusionar en `main`.
+En cada pull request, GitHub Actions ejecuta estos tests, el linter (sin avisos permitidos) y la compilación del frontend, y los tests y la APK de desarrollo de la app Android. Si algo falla, el PR no se puede fusionar en `main`.
 
 ---
 
@@ -211,7 +228,7 @@ La API maneja datos personales, así que en Internet **solo debe servirse por HT
    }
    ```
 3. Compila el panel con `VITE_API_URL=https://api.tuempresa.com npm run build` y publica la carpeta `frontend/dist` en `panel.tuempresa.com`.
-4. Compila la app en modo `release` con `api.url=https://api.tuempresa.com/api/`; esa versión no permite tráfico en claro.
+4. Compila y firma la app en modo `release` con `api.url.release=https://api.tuempresa.com/api/` (ver "APK de producción"); esa versión no permite tráfico en claro.
 
 ---
 

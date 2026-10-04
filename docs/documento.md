@@ -65,7 +65,7 @@ Para que un dispositivo Android (móvil físico o emulador) alcance el servidor 
 
 ### Producción (Internet)
 - La API se sirve **solo por HTTPS** detrás de un proxy (Caddy, Nginx…), con `HOST=127.0.0.1` y `TRUST_PROXY=1`. Ver "Despliegue en Internet" en el README.
-- La app se compila en modo `release` con `api.url=https://…`; esa versión no permite tráfico en claro.
+- La app se compila en modo `release` con `api.url.release=https://…` y se firma con la clave de `android/keystore.properties` (ver "APK de producción" en el README); esa versión no permite tráfico en claro.
 - CORS solo admite los orígenes de `CORS_ORIGINS` (el dominio del panel web). La app nativa no envía `Origin`, así que no le afecta.
 
 ### Autenticación
