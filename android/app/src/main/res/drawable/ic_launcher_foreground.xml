@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dos flechas en círculo (sincronización), centradas en la zona segura del icono adaptativo -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="30"
+        android:translateY="30">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M24,6 C14.06,6 6,14.06 6,24 L1,24 L8,31 L15,24 L10,24 C10,16.27 16.27,10 24,10 C27.86,10 31.36,11.57 33.9,14.1 L36.73,11.27 C33.47,8.01 28.97,6 24,6 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M40,17 L33,24 L38,24 C38,31.73 31.73,38 24,38 C20.14,38 16.64,36.43 14.1,33.9 L11.27,36.73 C14.53,39.99 19.03,42 24,42 C33.94,42 42,33.94 42,24 L47,24 Z" />
+    </group>
+</vector>

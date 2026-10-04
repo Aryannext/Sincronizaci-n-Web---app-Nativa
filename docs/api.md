@@ -17,7 +17,7 @@ El servidor Node.js se ejecuta vinculando explícitamente la interfaz `0.0.0.0` 
 - **Desarrollo en PC local (Web / Postman):**
   `http://localhost:3000/api`
 - **Conexión en Red Local / Móvil Android (IP Privada):**
-  `http://192.168.40.5:3000/api` *(Ejemplo de IP local configurada en `network_security_config.xml`)*
+  `http://192.168.40.5:3000/api` *(ejemplo; en la app se configura con `api.url` en `android/local.properties`)*
 
 En producción la API se sirve **solo por HTTPS** detrás de un proxy (ver "Despliegue en Internet" en el README).
 
@@ -82,7 +82,7 @@ Devuelve el usuario dueño del token. Sirve para comprobar si la sesión sigue a
 - Ante un `401` el cliente debe borrar el token y pedir de nuevo el inicio de sesión. Un `403` significa que el rol no tiene permiso para esa ruta.
 
 ### Guía para la App Android
-1. Guardar el token en `EncryptedSharedPreferences`, nunca la contraseña.
+1. Guardar el token cifrado (la app usa una clave del Android Keystore y DataStore, ver `android/.../data/sesion/AlmacenSesion.kt`), nunca la contraseña.
 2. Añadir la cabecera con un interceptor de OkHttp/Retrofit.
 3. Si `/sync/push` o `/sync` responden `401`, **no borrar la cola local de cambios**: pausar la sincronización, pedir al usuario que inicie sesión y reintentar después.
 4. El token dura 30 días: un dispositivo que pase más tiempo sin conexión tendrá que iniciar sesión de nuevo.
