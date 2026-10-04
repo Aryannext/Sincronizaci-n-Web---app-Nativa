@@ -1,0 +1,13 @@
+# Las imágenes de despliegue/ se construyen desde la raíz: solo necesitan backend/, frontend/ y despliegue/nginx/
+.git
+.github
+.claude
+android
+docs
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+backend/test
+despliegue/.env

@@ -96,6 +96,7 @@ El repositorio incluye las tres piezas: backend, panel web y app Android. El con
 │       ├── routes/       # Endpoints (/api/auth, /api/personas, /api/sync)
 │       ├── services/     # Lógica de negocio, push por lotes y registro de Sync Log
 │       └── validators/   # Reglas de validación (express-validator)
+├── despliegue/       # Producción en el VPS: Docker Compose (PostgreSQL + API + panel), Nginx y scripts
 ├── docs/             # Documentación técnica: API (api.md) y arquitectura (documento.md)
 └── frontend/         # Web App Administrativa (React 19 + Vite + Lucide Icons)
     └── src/
@@ -189,10 +190,7 @@ La APK `release` se firma con una clave propia. **Guarda esa clave y sus contras
    "C:/Program Files/Android/Android Studio/jbr/bin/keytool" -genkeypair -v -keystore firma/syncpulse-release.jks -alias syncpulse -keyalg RSA -keysize 4096 -validity 10000
    ```
 2. **Configurar la firma.** Copia `android/keystore.properties.example` como `android/keystore.properties` y escribe las contraseñas. Tanto ese archivo como la carpeta `firma/` están en `.gitignore`.
-3. **URL de producción.** Añade a `android/local.properties` la URL HTTPS de la API:
-   ```properties
-   api.url.release=https://api.tuempresa.com/api/
-   ```
+3. **URL de producción.** Por defecto la APK `release` usa el servidor de producción (`api.url.release` en `android/gradle.properties`: `https://proyectosena.online/sincronizacion/api/`). Para compilarla contra otro servidor, define `api.url.release` en `android/local.properties`.
 4. **Compilar:** `./gradlew assembleRelease` genera `android/app/build/outputs/apk/release/app-release.apk` (o `./gradlew bundleRelease` para un `.aab` de Google Play).
 
 Si falta la firma o la URL no empieza por `https://`, la compilación se detiene y explica qué falta. Antes de cada versión nueva, sube `versionCode` (y `versionName`) en `android/app/build.gradle.kts`.
@@ -214,21 +212,63 @@ En cada pull request, GitHub Actions ejecuta estos tests, el linter (sin avisos 
 
 ## Despliegue en Internet
 
-La API maneja datos personales, así que en Internet **solo debe servirse por HTTPS**. Node no gestiona los certificados: se pone un proxy delante (Caddy, Nginx o el del hosting) que termina HTTPS y reenvía a la API.
+La API maneja datos personales, así que en Internet **solo debe servirse por HTTPS**. Node no gestiona los certificados: un proxy delante (Nginx, Caddy o el del hosting) termina HTTPS y reenvía a la API.
 
-1. En el `.env` del servidor:
-   - `HOST=127.0.0.1`: solo el proxy puede llegar a la API.
-   - `TRUST_PROXY=1`: para que el límite de peticiones vea la IP real del cliente.
-   - `CORS_ORIGINS=https://panel.tuempresa.com`: el dominio del panel web.
-   - Un `JWT_SECRET` propio de producción, distinto al de desarrollo.
-2. Ejemplo con [Caddy](https://caddyserver.com/), que obtiene y renueva el certificado solo:
+### En el VPS (proyectosena.online)
+
+Producción vive dentro del sitio del portafolio, junto a los demás proyectos:
+
+| Qué | Dirección |
+|---|---|
+| Panel web | `https://proyectosena.online/sincronizacion/` |
+| API (la usa la app) | `https://proyectosena.online/sincronizacion/api/` |
+| APK firmada | `https://proyectosena.online/sincronizacion/descargas/syncpulse.apk` |
+
+Todo corre en Docker Compose (`despliegue/`), sin tocar el Node ni el PostgreSQL del servidor:
+
+```text
+Internet ─HTTPS─> Nginx del servidor ─/sincronizacion/─> 127.0.0.1:3020 contenedor web (Nginx: panel compilado)
+                                                                         └─ /api/ ─> contenedor api (Node) ─> contenedor db (PostgreSQL 16)
+```
+
+Solo el contenedor `web` publica un puerto, y solo en `127.0.0.1`; la API y la base no son accesibles desde fuera de Docker.
+
+**Primera instalación** (en el servidor, como `cristian`):
+
+1. Clonar y levantar. `instalar.sh` crea `despliegue/.env` con una contraseña de base de datos y un `JWT_SECRET` nuevos, construye las imágenes, crea el esquema con los datos de ejemplo y aplica las migraciones:
+   ```bash
+   git clone https://github.com/Aryannext/Sincronizaci-n-Web---app-Nativa.git ~/proyectos/proyectosena.online/sincronizacion
+   cd ~/proyectos/proyectosena.online/sincronizacion && sh despliegue/instalar.sh
+   ```
+   Antes, comprueba con `ss -ltn` que el puerto `3020` esté libre; si no, cambia `SINCRONIZACION_PUERTO` en `despliegue/.env` y el `proxy_pass` de `despliegue/nginx/sincronizacion.conf`.
+2. Publicarlo en Nginx: añade al bloque `server` 443 de `proyectosena.online`
+   ```nginx
+   include /home/cristian/proyectos/proyectosena.online/sincronizacion/despliegue/nginx/sincronizacion.conf;
+   ```
+   y recarga con `sudo nginx -t && sudo systemctl reload nginx`.
+3. Crear los usuarios (la contraseña se pide por teclado):
+   ```bash
+   cd despliegue && docker compose exec api npm run crear-usuario -- --correo admin@tuempresa.com --nombre "Ana Admin" --rol admin
+   ```
+4. Subir la APK firmada (ver "APK de producción") desde tu PC:
+   ```bash
+   scp android/app/build/outputs/apk/release/app-release.apk cristian@proyectosena.online:descargas-sincronizacion/syncpulse.apk
+   ```
+   La carpeta `~/descargas-sincronizacion/` se crea una vez en el servidor con `mkdir`.
+
+**Actualizar** después de fusionar en `main`: `sh despliegue/desplegar.sh` hace `git pull`, reconstruye, aplica las migraciones nuevas (las de `backend/src/database` a partir de la 04, que se pueden repetir) y espera a que los contenedores respondan.
+
+### En otro servidor
+
+1. En el `.env` del servidor: `HOST=127.0.0.1` (solo el proxy llega a la API), `TRUST_PROXY=1` (el límite de peticiones ve la IP real), `CORS_ORIGINS` con el dominio del panel y un `JWT_SECRET` propio de producción.
+2. Proxy HTTPS delante, por ejemplo con [Caddy](https://caddyserver.com/), que obtiene y renueva el certificado solo:
    ```
    api.tuempresa.com {
        reverse_proxy 127.0.0.1:3000
    }
    ```
-3. Compila el panel con `VITE_API_URL=https://api.tuempresa.com npm run build` y publica la carpeta `frontend/dist` en `panel.tuempresa.com`.
-4. Compila y firma la app en modo `release` con `api.url.release=https://api.tuempresa.com/api/` (ver "APK de producción"); esa versión no permite tráfico en claro.
+3. Compila el panel con `VITE_API_URL=https://api.tuempresa.com npm run build` (y `VITE_BASE=/ruta/` si no va en la raíz del dominio) y publica `frontend/dist`.
+4. Compila y firma la app en modo `release` con `api.url.release=https://api.tuempresa.com/api/` en `android/local.properties` (ver "APK de producción"); esa versión no permite tráfico en claro.
 
 ---
 

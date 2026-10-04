@@ -64,8 +64,9 @@ Para que un dispositivo Android (móvil físico o emulador) alcance el servidor 
 3. **Nivel de Servidor (Node.js):** Con `HOST=0.0.0.0` en el `.env`, Express acepta conexiones de otros dispositivos de la red y no solo de `localhost`. El Firewall de Windows debe permitir el puerto `3000` en redes privadas.
 
 ### Producción (Internet)
-- La API se sirve **solo por HTTPS** detrás de un proxy (Caddy, Nginx…), con `HOST=127.0.0.1` y `TRUST_PROXY=1`. Ver "Despliegue en Internet" en el README.
-- La app se compila en modo `release` con `api.url.release=https://…` y se firma con la clave de `android/keystore.properties` (ver "APK de producción" en el README); esa versión no permite tráfico en claro.
+- La API se sirve **solo por HTTPS** detrás de un proxy (Caddy, Nginx…), con `TRUST_PROXY=1` y sin exponer su puerto a Internet. Ver "Despliegue en Internet" en el README.
+- En el VPS de producción todo vive bajo `https://proyectosena.online/sincronizacion/`: el Nginx del servidor reenvía esa ruta a un contenedor que sirve el panel y pasa `/api/` al contenedor de la API, que usa su propio PostgreSQL (carpeta `despliegue/`).
+- La app se compila en modo `release` con `api.url.release=https://proyectosena.online/sincronizacion/api/` y se firma con la clave de `android/keystore.properties` (ver "APK de producción" en el README); esa versión no permite tráfico en claro.
 - CORS solo admite los orígenes de `CORS_ORIGINS` (el dominio del panel web). La app nativa no envía `Origin`, así que no le afecta.
 
 ### Autenticación
