@@ -47,6 +47,6 @@ Si un cambio afecta al contrato con la app Android (rutas, campos o estados del 
 ## Estilo
 
 - Código, interfaz, documentación y mensajes de commit en **español**.
-- Backend: CommonJS, 4 espacios, sin punto y coma. Frontend: 2 espacios, con punto y coma. Android: Kotlin, 4 espacios; la lógica de sincronización pura va en `domain/` con tests JUnit.
+- Backend: CommonJS, 4 espacios, sin punto y coma. Frontend: 2 espacios, con punto y coma. Android: Kotlin, 4 espacios; la lógica de sincronización pura va en `domain/` con tests JUnit. Las dependencias de Android están fijadas en `*.lockfile`: si cambias `gradle/libs.versions.toml`, regenéralos con `./gradlew :app:dependencies buildEnvironment --write-locks`.
 - Finales de línea LF.
 - Commits con prefijo convencional (`feat:`, `fix:`, `docs:`, `test:`, `ci:`, `chore:`, `refactor:`).

@@ -60,7 +60,7 @@ graph TD
 Para que un dispositivo Android (móvil físico o emulador) alcance el servidor en tu PC (ejemplo de red: `192.168.40.5`):
 
 1. **Nivel de API (Android):** la URL se fija al compilar con `api.url` en `android/local.properties` (o `android/gradle.properties`), por ejemplo `http://192.168.40.5:3000/api/`. La pantalla de login muestra a qué servidor se conecta.
-2. **Nivel de Seguridad (Android):** solo la versión de desarrollo (`debug`) permite HTTP sin cifrar, con `app/src/debug/res/xml/network_security_config.xml`. La versión `release` no incluye esa excepción y exige HTTPS.
+2. **Nivel de Seguridad (Android):** la app declara `network_security_config.xml` en su manifiesto. En `release` se usa el de `app/src/main/res/xml/`, que solo permite HTTPS; la versión de desarrollo (`debug`) lo sustituye por el de `app/src/debug/res/xml/`, que permite HTTP sin cifrar hacia el backend local.
 3. **Nivel de Servidor (Node.js):** Con `HOST=0.0.0.0` en el `.env`, Express acepta conexiones de otros dispositivos de la red y no solo de `localhost`. El Firewall de Windows debe permitir el puerto `3000` en redes privadas.
 
 ### Producción (Internet)

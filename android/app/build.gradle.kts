@@ -47,6 +47,10 @@ android {
     }
 }
 
+dependencyLocking {
+    lockAllConfigurations()
+}
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
