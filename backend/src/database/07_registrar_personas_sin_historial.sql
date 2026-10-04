@@ -7,10 +7,8 @@
 INSERT INTO sync_log (table_name, record_uuid, operation)
 SELECT 'personas', p.uuid, 'CREATE'
 FROM personas p
+LEFT JOIN sync_log sl
+    ON sl.record_uuid = p.uuid
 WHERE p.deleted_at IS NULL
-    AND NOT EXISTS (
-        SELECT 1
-        FROM sync_log sl
-        WHERE sl.record_uuid = p.uuid
-    )
-ORDER BY p.id;
+    AND sl.change_id IS NULL
+ORDER BY p.id ASC;
