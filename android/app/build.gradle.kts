@@ -15,13 +15,23 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// api.url se toma de local.properties (si existe) o de gradle.properties
-val propiedadesLocales = Properties().apply {
-    val archivo = rootProject.file("local.properties")
+fun leerPropiedades(nombre: String) = Properties().apply {
+    val archivo = rootProject.file(nombre)
     if (archivo.exists()) archivo.inputStream().use { load(it) }
 }
-val apiUrl: String = propiedadesLocales.getProperty("api.url")
-    ?: providers.gradleProperty("api.url").get()
+
+// Cada URL se toma de local.properties (si existe) o de gradle.properties / -P
+val propiedadesLocales = leerPropiedades("local.properties")
+fun propiedad(clave: String): String? =
+    propiedadesLocales.getProperty(clave) ?: providers.gradleProperty(clave).orNull
+
+val apiUrl: String = propiedad("api.url") ?: error("Falta api.url en gradle.properties.")
+// La versión release solo admite HTTPS; se valida al compilarla (ver validarRelease)
+val apiUrlRelease: String = propiedad("api.url.release").orEmpty()
+
+// Firma de release: android/keystore.properties (no se sube a git, ver keystore.properties.example)
+val firma = leerPropiedades("keystore.properties")
+val hayFirma = listOf("storeFile", "storePassword", "keyAlias", "keyPassword").all { !firma.getProperty(it).isNullOrBlank() }
 
 android {
     namespace = "com.sincronizacion.app"
@@ -33,14 +43,28 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0.0"
+    }
 
-        buildConfigField("String", "API_URL", "\"$apiUrl\"")
+    signingConfigs {
+        if (hayFirma) {
+            create("release") {
+                storeFile = rootProject.file(firma.getProperty("storeFile"))
+                storePassword = firma.getProperty("storePassword")
+                keyAlias = firma.getProperty("keyAlias")
+                keyPassword = firma.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "API_URL", "\"$apiUrl\"")
+        }
         release {
+            buildConfigField("String", "API_URL", "\"$apiUrlRelease\"")
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (hayFirma) signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -58,6 +82,21 @@ android {
 dependencyLocking {
     lockAllConfigurations()
 }
+
+// Falla pronto y con un mensaje claro si la versión release no se puede publicar
+val validarRelease by tasks.registering {
+    val url = apiUrlRelease
+    val firmada = hayFirma
+    doLast {
+        check(url.startsWith("https://")) {
+            "api.url.release debe ser una URL https:// (actual: \"$url\"). Defínela en local.properties."
+        }
+        check(firmada) {
+            "Falta la firma de release: crea android/keystore.properties a partir de keystore.properties.example."
+        }
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(validarRelease) }
 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")

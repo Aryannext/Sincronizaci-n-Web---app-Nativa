@@ -9,6 +9,7 @@ cd backend && npm test                                          # tests de integ
 cd backend && npm run dev                                       # API en el puerto 3000 (necesita .env con PostgreSQL y JWT_SECRET)
 cd frontend && npm run lint -- --deny-warnings && npm run build # lo mismo que ejecuta el CI
 cd android && ./gradlew testDebugUnitTest assembleDebug          # tests y APK de la app (JDK de Android Studio)
+cd android && ./gradlew assembleRelease                         # APK firmada (necesita keystore.properties y api.url.release https)
 ```
 
 ## Regla principal: la documentación cambia con el código
@@ -37,6 +38,7 @@ Si un cambio afecta al contrato con la app Android (rutas, campos o estados del 
 - Toda ruta nueva requiere `autenticar` y `autorizar(...)` (ver `backend/src/app.js`). Solo `GET /` y `POST /api/auth/login` son públicas.
 - Roles: `admin` (panel web, todo) y `operador` (app móvil, solo `/api/sync`).
 - Nunca registrar datos personales ni tokens en los logs.
+- Nunca subir la clave de firma de Android (`*.jks`, `android/firma/`) ni `android/keystore.properties`.
 - SonarCloud debe pasar sin avisos de seguridad: evitar expresiones regulares con backtracking y validar todo dato externo antes de usarlo en URLs o SQL (siempre consultas parametrizadas).
 
 ## Tests
