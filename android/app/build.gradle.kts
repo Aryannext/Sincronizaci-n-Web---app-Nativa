@@ -1,5 +1,13 @@
 import java.util.Properties
 
+// Versiones fijadas en gradle.lockfile y buildscript-gradle.lockfile (plugins).
+// Tras cambiar libs.versions.toml: ./gradlew :app:dependencies :app:buildEnvironment --write-locks
+buildscript {
+    configurations.classpath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
